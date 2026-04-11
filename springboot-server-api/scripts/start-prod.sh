@@ -1,25 +1,66 @@
 #!/bin/bash
-# 生产环境启动脚本（MySQL 持久化）
-# 使用前：在宝塔面板设置 MySQL root 密码为 PA4HKdcDZ7jRkj99，或修改下方 MYSQL_PASSWORD
+# 服务器上启动 Spring Boot WAR（与 deploy-183.sh / deploy.sh 配套）
+#
+# 环境变量：
+#   MYSQL_PASSWORD   prod 时必填（与 application-prod.yml 中库密码一致）
+#   SPRING_PROFILE   默认 prod；无 MySQL 可设 dev（H2 内存，仅演示）
+#   JAVA_BIN         可选，显式指定 java 路径
+#   SERVER_PORT      默认 8082（与文档中 Nginx 反代一致）
 
 set -e
 cd "$(dirname "$0")"
 
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-3DcMYF2ar8A4Ee8P}"
 WAR_NAME="springboot-server-api-0.0.1-SNAPSHOT.war"
-JAVA_BIN="/www/server/java/jdk-17.0.8/bin/java"
+SPRING_PROFILE="${SPRING_PROFILE:-prod}"
+SERVER_PORT="${SERVER_PORT:-8082}"
 
-# 数据库 dg_server 需已在 MySQL 中创建
+if [[ ! -f "$WAR_NAME" ]]; then
+  echo "错误: 当前目录无 $WAR_NAME" >&2
+  exit 1
+fi
 
-# 停止旧进程
-pkill -f springboot-server-api 2>/dev/null || true
+# 解析 java：JAVA_BIN → JAVA_HOME → 宝塔常见路径 → PATH
+JAVA_CMD="${JAVA_BIN:-}"
+if [[ -z "$JAVA_CMD" || ! -x "$JAVA_CMD" ]]; then
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    JAVA_CMD="${JAVA_HOME}/bin/java"
+  elif [[ -x "/www/server/java/jdk-17.0.8/bin/java" ]]; then
+    JAVA_CMD="/www/server/java/jdk-17.0.8/bin/java"
+  elif [[ -x "/usr/bin/java" ]]; then
+    JAVA_CMD="/usr/bin/java"
+  else
+    JAVA_CMD="$(command -v java || true)"
+  fi
+fi
+if [[ -z "$JAVA_CMD" ]]; then
+  echo "错误: 找不到 java，请安装 JDK17 或设置 JAVA_HOME / JAVA_BIN" >&2
+  exit 1
+fi
+
+echo "使用 Java: $JAVA_CMD"
+"$JAVA_CMD" -version 2>&1 | head -1
+
+# 停止旧进程（按 jar 名匹配）
+pkill -f "${WAR_NAME}" 2>/dev/null || true
 sleep 2
 
-# 启动
-export MYSQL_PASSWORD
-nohup "$JAVA_BIN" -jar "$WAR_NAME" \
-  --spring.profiles.active=prod \
-  --server.port=8082 \
+# 仅当显式传入时再导出，避免空字符串覆盖 yml 中的默认值
+if [[ -n "${MYSQL_PASSWORD:-}" ]]; then
+  export MYSQL_PASSWORD
+fi
+
+echo "启动 profile=$SPRING_PROFILE  port=$SERVER_PORT ..."
+nohup "$JAVA_CMD" -jar "$WAR_NAME" \
+  --spring.profiles.active="$SPRING_PROFILE" \
+  --server.port="$SERVER_PORT" \
   > app.log 2>&1 &
 
-echo "已启动，日志: tail -f app.log"
+sleep 1
+if pgrep -f "$WAR_NAME" >/dev/null 2>&1; then
+  echo "已启动。日志: tail -f $(pwd)/app.log"
+  echo "本机探测: curl -s http://127.0.0.1:${SERVER_PORT}/api/hello"
+else
+  echo "警告: 未检测到进程，请查看 app.log" >&2
+  tail -30 app.log >&2 || true
+  exit 1
+fi

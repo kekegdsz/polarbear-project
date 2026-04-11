@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.im.mapper.ImGroupMapper">
+
+    <resultMap id="Base" type="com.undersky.api.springbootserverapi.im.model.ImGroup">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="owner_user_id" property="ownerUserId"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO im_groups (name, owner_user_id)
+        VALUES (#{name}, #{ownerUserId})
+    </insert>
+
+    <select id="findById" resultMap="Base">
+        SELECT id, name, owner_user_id, created_at FROM im_groups WHERE id = #{id}
+    </select>
+
+    <select id="listMemberUserIds" resultType="long">
+        SELECT user_id FROM im_group_members WHERE group_id = #{groupId} ORDER BY joined_at
+    </select>
+</mapper>

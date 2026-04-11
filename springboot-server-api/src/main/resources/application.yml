@@ -27,6 +27,12 @@ server:
   servlet:
     context-path: /api
 
+# Netty 即时通讯 WebSocket（与 Tomcat 独立端口）
+im:
+  netty:
+    port: 19080
+    path: /im/ws
+
 springdoc:
   api-docs:
     path: /v3/api-docs

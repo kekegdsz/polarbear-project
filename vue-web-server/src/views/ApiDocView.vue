@@ -126,14 +126,129 @@
       </section>
 
       <section class="section">
-        <h2>4. 其他公开接口</h2>
+        <h2>4. IM 即时通讯对接</h2>
+        <p>
+          IM 使用 <strong>WebSocket</strong>，与上文的 HTTP Base URL <strong>同主机、同站点路径前缀</strong>，便于走 HTTPS/WSS 与反向代理。
+          每条消息为 <strong>一行 JSON 文本</strong>（UTF-8），字段 <code>type</code> 表示指令类型。
+        </p>
+
+        <h3>4.1 连接地址</h3>
+        <p><strong>推荐（与官网同源）：</strong></p>
+        <pre><code>{{ imWsUrl }}</code></pre>
+        <p>
+          与当前页面同源：浏览器打开官网为 <code>https</code> 时请使用 <code>wss://</code>（上表已按当前协议生成）。
+          本地开发若前端为 Vite、后端为 Spring，请在 Vite 中对 <code>/api</code> 开启 WebSocket 代理（仓库已配置 <code>ws: true</code>）。
+        </p>
+        <p><strong>可选（直连 Netty，需服务端放行端口）：</strong></p>
+        <pre><code>{{ imWsNettyUrl }}</code></pre>
+        <p>一般仅内网调试或专用客户端使用；公网部署更推荐只暴露 443，由 Nginx 将 <code>/api/</code>（含 WebSocket 升级）反代到 Spring。</p>
+
+        <h3>4.2 接入流程</h3>
+        <ol class="step-list">
+          <li>建立 WebSocket 连接到上述地址。</li>
+          <li>连接成功后<strong>必须先发送鉴权</strong>（见下节 <code>AUTH</code>），否则其他指令会返回 <code>ERROR</code>。</li>
+          <li>鉴权成功后即可收发单聊、群聊、拉历史、拉会话列表等。</li>
+          <li>同一 <code>userId</code> 仅保留<strong>一条在线连接</strong>：新连接建立后，旧连接会被服务端关闭。</li>
+        </ol>
+
+        <h3>4.3 客户端 → 服务端</h3>
+        <table class="doc-table">
+          <thead>
+            <tr><th>type</th><th>说明</th><th>主要字段</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>AUTH</code></td>
+              <td>登录绑定（必发）</td>
+              <td><code>userId</code>（数字，须为已存在用户）</td>
+            </tr>
+            <tr>
+              <td><code>PRIVATE_SEND</code></td>
+              <td>单聊发送</td>
+              <td><code>toUserId</code>、<code>body</code></td>
+            </tr>
+            <tr>
+              <td><code>GROUP_SEND</code></td>
+              <td>群聊发送</td>
+              <td><code>groupId</code>、<code>body</code>（须已在群内）</td>
+            </tr>
+            <tr>
+              <td><code>GROUP_CREATE</code></td>
+              <td>建群</td>
+              <td><code>name</code>（群名）；创建者自动入群</td>
+            </tr>
+            <tr>
+              <td><code>GROUP_JOIN</code></td>
+              <td>加入群</td>
+              <td><code>groupId</code></td>
+            </tr>
+            <tr>
+              <td><code>HISTORY</code></td>
+              <td>历史消息</td>
+              <td><code>mode</code>：<code>P2P</code> 时带 <code>peerUserId</code>；<code>GROUP</code> 时带 <code>groupId</code>；可选 <code>beforeId</code>、<code>limit</code></td>
+            </tr>
+            <tr>
+              <td><code>CONVERSATIONS</code></td>
+              <td>最近会话列表</td>
+              <td>无额外字段</td>
+            </tr>
+            <tr>
+              <td><code>USER_INFO</code></td>
+              <td>查询用户资料</td>
+              <td><code>userId</code></td>
+            </tr>
+            <tr>
+              <td><code>GROUP_INFO</code></td>
+              <td>查询群资料与成员</td>
+              <td><code>groupId</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>4.4 服务端 → 客户端（常见）</h3>
+        <table class="doc-table">
+          <thead>
+            <tr><th>type</th><th>含义</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>AUTH_OK</code></td><td>鉴权成功，含 <code>userId</code></td></tr>
+            <tr><td><code>PRIVATE_MESSAGE</code></td><td>单聊下行（含 <code>msgId</code>、<code>fromUserId</code>、<code>toUserId</code>、<code>body</code>、<code>createdAt</code>）</td></tr>
+            <tr><td><code>GROUP_MESSAGE</code></td><td>群聊下行</td></tr>
+            <tr><td><code>GROUP_CREATED</code></td><td>建群成功，含 <code>groupId</code>、<code>name</code></td></tr>
+            <tr><td><code>GROUP_JOIN_OK</code></td><td>入群结果</td></tr>
+            <tr><td><code>GROUP_SYSTEM</code></td><td>群系统提示（如成员加入）</td></tr>
+            <tr><td><code>HISTORY_RESULT</code></td><td>历史列表，<code>messages</code> 为数组</td></tr>
+            <tr><td><code>CONVERSATIONS_RESULT</code></td><td>最近会话，<code>items</code> 为数组</td></tr>
+            <tr><td><code>USER_INFO_RESULT</code></td><td>用户资料（不含密码）</td></tr>
+            <tr><td><code>GROUP_INFO_RESULT</code></td><td>群信息与 <code>memberIds</code></td></tr>
+            <tr><td><code>ERROR</code></td><td>失败，<code>message</code> 为原因</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.5 示例</h3>
+        <p><strong>鉴权：</strong></p>
+        <pre class="code-block">{"type":"AUTH","userId":101}</pre>
+        <p><strong>单聊：</strong></p>
+        <pre class="code-block">{"type":"PRIVATE_SEND","toUserId":102,"body":"你好"}</pre>
+        <p><strong>建群并发消息：</strong></p>
+        <pre class="code-block">{"type":"GROUP_CREATE","name":"产品讨论组"}
+{"type":"GROUP_SEND","groupId":1,"body":"大家好"}</pre>
+        <p>
+          联调可使用站内
+          <a class="doc-inline-link" href="/im-chat.html" target="_blank" rel="noopener">IM 测试页</a>
+          （静态资源 <code>/im-chat.html</code>，与官网同源部署即可访问）。
+        </p>
+      </section>
+
+      <section class="section">
+        <h2>5. 其他公开接口</h2>
         <h3>Hello 测试</h3>
         <pre><code>GET {{ apiBase }}/hello</code></pre>
         <p>返回 <code>{"code":0,"message":"success","data":"Hello World"}</code></p>
       </section>
 
       <section class="section">
-        <h2>5. 错误码</h2>
+        <h2>6. 错误码</h2>
         <ul>
           <li><code>code: 0</code> - 成功</li>
           <li><code>code: 非 0</code> - 失败，<code>message</code> 为错误描述</li>
@@ -153,6 +268,25 @@ import { computed } from 'vue'
 const apiBase = computed(() => {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}/api`
+})
+
+/** 与 HTTP 同源：/api/im/ws（经 Nginx/Vite 反代到 Spring） */
+const imWsUrl = computed(() => {
+  if (typeof window === 'undefined') {
+    return 'ws://localhost/api/im/ws'
+  }
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${wsProto}//${window.location.host}/api/im/ws`
+})
+
+/** 直连 Netty（可选，需放行 19080） */
+const imWsNettyUrl = computed(() => {
+  if (typeof window === 'undefined') {
+    return 'ws://localhost:19080/im/ws'
+  }
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const h = window.location.hostname || 'localhost'
+  return `${wsProto}//${h}:19080/im/ws`
 })
 </script>
 
@@ -296,6 +430,16 @@ pre code {
 }
 
 .back-link a:hover {
+  text-decoration: underline;
+}
+
+.doc-inline-link {
+  color: #0071e3;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.doc-inline-link:hover {
   text-decoration: underline;
 }
 </style>

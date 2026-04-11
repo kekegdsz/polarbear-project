@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wx_green">#07C160</color>
+    <color name="wx_bg">#EDEDED</color>
+    <color name="wx_nav">#EDEDED</color>
+</resources>

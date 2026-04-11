@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.im.mapper.ImMessageMapper">
+
+    <resultMap id="Msg" type="com.undersky.api.springbootserverapi.im.model.ImMessage">
+        <id column="id" property="id"/>
+        <result column="msg_type" property="msgType"/>
+        <result column="from_user_id" property="fromUserId"/>
+        <result column="to_user_id" property="toUserId"/>
+        <result column="group_id" property="groupId"/>
+        <result column="body" property="body"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO im_messages (msg_type, from_user_id, to_user_id, group_id, body)
+        VALUES (#{msgType}, #{fromUserId}, #{toUserId}, #{groupId}, #{body})
+    </insert>
+
+    <select id="listP2PHistory" resultMap="Msg">
+        SELECT id, msg_type, from_user_id, to_user_id, group_id, body, created_at
+        FROM im_messages
+        WHERE msg_type = 'P2P'
+          AND ((from_user_id = #{userId} AND to_user_id = #{peerUserId})
+            OR (from_user_id = #{peerUserId} AND to_user_id = #{userId}))
+        <if test="beforeId != null">
+            AND id &lt; #{beforeId}
+        </if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listGroupHistory" resultMap="Msg">
+        SELECT id, msg_type, from_user_id, to_user_id, group_id, body, created_at
+        FROM im_messages
+        WHERE msg_type = 'GROUP' AND group_id = #{groupId}
+        <if test="beforeId != null">
+            AND id &lt; #{beforeId}
+        </if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listRecentP2PPeers" resultMap="Msg">
+        SELECT m.id, m.msg_type, m.from_user_id, m.to_user_id, m.group_id, m.body, m.created_at
+        FROM im_messages m
+        INNER JOIN (
+            SELECT MAX(id) AS mid
+            FROM im_messages
+            WHERE msg_type = 'P2P'
+              AND (from_user_id = #{userId} OR to_user_id = #{userId})
+            GROUP BY CASE WHEN from_user_id = #{userId} THEN to_user_id ELSE from_user_id END
+        ) t ON m.id = t.mid
+        ORDER BY m.created_at DESC
+    </select>
+
+    <select id="listRecentGroupSummaries" resultMap="Msg">
+        SELECT m.id, m.msg_type, m.from_user_id, m.to_user_id, m.group_id, m.body, m.created_at
+        FROM im_messages m
+        INNER JOIN (
+            SELECT group_id, MAX(id) AS mid
+            FROM im_messages
+            WHERE msg_type = 'GROUP'
+            GROUP BY group_id
+        ) t ON m.id = t.mid AND m.group_id = t.group_id
+        WHERE m.group_id IN (SELECT group_id FROM im_group_members WHERE user_id = #{userId})
+        ORDER BY m.created_at DESC
+    </select>
+</mapper>

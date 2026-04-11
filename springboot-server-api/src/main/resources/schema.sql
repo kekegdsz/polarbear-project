@@ -40,3 +40,37 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ========== 即时通讯（Netty WebSocket）==========
+CREATE TABLE IF NOT EXISTS im_groups (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    owner_user_id BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS im_group_members (
+    group_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS im_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    msg_type VARCHAR(8) NOT NULL,
+    from_user_id BIGINT NOT NULL,
+    to_user_id BIGINT,
+    group_id BIGINT,
+    body VARCHAR(4000) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 测试用户（IM 演示用，内存库每次启动为空可直接插入）
+INSERT INTO users (id, device_uuid, username, password, role)
+VALUES (101, 'im-demo-101', 'alice', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, password, role)
+VALUES (102, 'im-demo-102', 'bob', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, password, role)
+VALUES (103, 'im-demo-103', 'carol', 'x', 'user');
+ALTER TABLE users ALTER COLUMN id RESTART WITH 104;
