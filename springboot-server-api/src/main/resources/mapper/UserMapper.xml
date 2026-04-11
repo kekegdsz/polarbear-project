@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.User">
+        <id column="id" property="id"/>
+        <result column="device_uuid" property="deviceUuid"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="mobile" property="mobile"/>
+        <result column="token" property="token"/>
+        <result column="token_expire_time" property="tokenExpireTime"/>
+        <result column="vip" property="vip"/>
+        <result column="vip_expire_time" property="vipExpireTime"/>
+        <result column="role" property="role"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, device_uuid, username, password, mobile, token, token_expire_time,
+        vip, vip_expire_time, role, created_at, updated_at
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users WHERE id = #{id}
+    </select>
+
+    <select id="selectByUsername" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users WHERE username = #{username} LIMIT 1
+    </select>
+
+    <select id="selectByMobile" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users WHERE mobile = #{mobile} LIMIT 1
+    </select>
+
+    <select id="selectByDeviceUuid" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users WHERE device_uuid = #{deviceUuid} LIMIT 1
+    </select>
+
+    <select id="selectByToken" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users WHERE token = #{token} LIMIT 1
+    </select>
+
+    <select id="countByUsername" resultType="int">
+        SELECT COUNT(1) FROM users WHERE username = #{username}
+    </select>
+
+    <select id="countByMobile" resultType="int">
+        SELECT COUNT(1) FROM users WHERE mobile = #{mobile}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(1) FROM users
+    </select>
+
+    <select id="countToday" resultType="long">
+        SELECT COUNT(1) FROM users
+        WHERE DATE(created_at) = CURRENT_DATE
+    </select>
+
+    <select id="countVip" resultType="long">
+        SELECT COUNT(1) FROM users WHERE vip = 'vip'
+    </select>
+
+    <select id="selectUsers" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM users
+        <where>
+            <if test="keyword != null and keyword != ''">
+                (username LIKE CONCAT('%', #{keyword}, '%')
+                OR mobile LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (device_uuid, username, password, mobile, token, token_expire_time, vip, role, created_at, updated_at)
+        VALUES (#{deviceUuid}, #{username}, #{password}, #{mobile}, #{token}, #{tokenExpireTime}, #{vip}, #{role}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="updateById">
+        UPDATE users
+        <set>
+            <if test="token != null">token = #{token},</if>
+            <if test="tokenExpireTime != null">token_expire_time = #{tokenExpireTime},</if>
+            <if test="vip != null">vip = #{vip},</if>
+            <if test="vipExpireTime != null">vip_expire_time = #{vipExpireTime},</if>
+            updated_at = #{updatedAt}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePassword">
+        UPDATE users SET password = #{password}, updated_at = #{updatedAt} WHERE id = #{id}
+    </update>
+</mapper>

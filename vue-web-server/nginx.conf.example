@@ -1,0 +1,8 @@
+# 宝塔 Nginx 纯静态配置示例（无 PHP）
+# 网站类型选择「纯静态」后，在 伪静态 中填入：
+
+location ^~ /changelog { rewrite ^ /index.html last; }
+location ^~ /download { rewrite ^ /index.html last; }
+location / {
+    try_files $uri $uri/ /index.html;
+}

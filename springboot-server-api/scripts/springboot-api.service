@@ -1,0 +1,15 @@
+[Unit]
+Description=Spring Boot API Service
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/apps/springboot-server-api
+Environment=MYSQL_PASSWORD=3DcMYF2ar8A4Ee8P
+ExecStart=/www/server/java/jdk-17.0.8/bin/java -jar /opt/apps/springboot-server-api/springboot-server-api-0.0.1-SNAPSHOT.war --spring.profiles.active=prod --server.port=8082
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

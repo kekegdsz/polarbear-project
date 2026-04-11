@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.OrderMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.Order">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="amount" property="amount"/>
+        <result column="status" property="status"/>
+        <result column="payment_type" property="paymentType"/>
+        <result column="payment_trade_no" property="paymentTradeNo"/>
+        <result column="remark" property="remark"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, order_no, user_id, amount, status, payment_type, payment_trade_no, remark, created_at, updated_at
+    </sql>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM orders
+        <where>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="paymentType != null and paymentType != ''">
+                AND payment_type = #{paymentType}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR payment_trade_no LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByFilter" resultType="long">
+        SELECT COUNT(1) FROM orders
+        <where>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="paymentType != null and paymentType != ''">
+                AND payment_type = #{paymentType}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR payment_trade_no LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <select id="selectStats" resultType="com.undersky.api.springbootserverapi.model.vo.OrderStatsVO">
+        SELECT
+            COUNT(1) AS total_count,
+            COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_count,
+            COALESCE(SUM(CASE WHEN status = 'ordered' THEN 1 ELSE 0 END), 0) AS ordered_count,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END), 0) AS paid_count,
+            COALESCE(SUM(amount), 0) AS total_amount,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) AS paid_amount
+        FROM orders
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM orders WHERE id = #{id}
+    </select>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM orders WHERE order_no = #{orderNo}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (order_no, user_id, amount, status, payment_type, payment_trade_no, remark, created_at, updated_at)
+        VALUES (#{orderNo}, #{userId}, #{amount}, #{status}, #{paymentType}, #{paymentTradeNo}, #{remark}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="updateById">
+        UPDATE orders
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="paymentType != null">payment_type = #{paymentType},</if>
+            <if test="paymentTradeNo != null">payment_trade_no = #{paymentTradeNo},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            updated_at = #{updatedAt}
+        </set>
+        WHERE id = #{id}
+    </update>
+</mapper>

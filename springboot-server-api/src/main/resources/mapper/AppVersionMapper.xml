@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.AppVersionMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.AppVersion">
+        <id column="id" property="id"/>
+        <result column="version_name" property="versionName"/>
+        <result column="version_code" property="versionCode"/>
+        <result column="channel" property="channel"/>
+        <result column="download_url" property="downloadUrl"/>
+        <result column="release_notes" property="releaseNotes"/>
+        <result column="force_upgrade" property="forceUpgrade"/>
+        <result column="published" property="published"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, version_name, version_code, channel, download_url, release_notes, force_upgrade, published, created_at, updated_at
+    </sql>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM app_versions
+        <where>
+            <if test="channel != null and channel != ''">
+                AND channel = #{channel}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (version_name LIKE CONCAT('%', #{keyword}, '%')
+                OR release_notes LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByFilter" resultType="long">
+        SELECT COUNT(1) FROM app_versions
+        <where>
+            <if test="channel != null and channel != ''">
+                AND channel = #{channel}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (version_name LIKE CONCAT('%', #{keyword}, '%')
+                OR release_notes LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM app_versions WHERE id = #{id}
+    </select>
+
+    <select id="selectLatestPublished" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM app_versions
+        WHERE channel = #{channel} AND published = 1
+        ORDER BY version_code DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO app_versions (version_name, version_code, channel, download_url, release_notes, force_upgrade, published, created_at, updated_at)
+        VALUES (#{versionName}, #{versionCode}, #{channel}, #{downloadUrl}, #{releaseNotes}, #{forceUpgrade}, #{published}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="updateById">
+        UPDATE app_versions
+        <set>
+            <if test="versionName != null">version_name = #{versionName},</if>
+            <if test="versionCode != null">version_code = #{versionCode},</if>
+            <if test="channel != null">channel = #{channel},</if>
+            <if test="downloadUrl != null">download_url = #{downloadUrl},</if>
+            <if test="releaseNotes != null">release_notes = #{releaseNotes},</if>
+            <if test="forceUpgrade != null">force_upgrade = #{forceUpgrade},</if>
+            <if test="published != null">published = #{published},</if>
+            updated_at = #{updatedAt}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM app_versions WHERE id = #{id}
+    </delete>
+</mapper>

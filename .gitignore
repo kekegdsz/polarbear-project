@@ -1,0 +1,16 @@
+# OS / IDE
+.DS_Store
+.idea
+*.iml
+
+# Backend (Maven)
+springboot-server-api/target/
+springboot-server-api/.mvn/wrapper/maven-wrapper.jar
+
+# Frontend
+vue-web-server/node_modules/
+vue-web-server/dist/
+
+# Env / secrets
+.env
+.env.*

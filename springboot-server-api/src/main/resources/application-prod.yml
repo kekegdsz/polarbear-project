@@ -1,0 +1,11 @@
+# 生产环境配置 - MySQL
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/dg_server?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: dg_server
+    password: ${MYSQL_PASSWORD:3DcMYF2ar8A4Ee8P}
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
