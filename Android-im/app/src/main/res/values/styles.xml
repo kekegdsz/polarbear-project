@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 微信式顶栏标题：约 17sp 黑字、中等字重 -->
+    <style name="TextAppearance.Wx.ToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">17sp</item>
+        <item name="android:textColor">#DE000000</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- 底部 Tab：M2 扁平样式（无 M3 选中胶囊），接近微信 -->
+    <style name="Widget.AndroidIm.BottomNavigation" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="android:background">@color/wx_nav</item>
+        <item name="elevation">0dp</item>
+        <item name="itemIconSize">26dp</item>
+        <item name="itemIconTint">@color/wx_bottom_nav_icon</item>
+        <item name="itemTextColor">@color/wx_bottom_nav_text</item>
+        <item name="itemPaddingTop">2dp</item>
+        <item name="itemPaddingBottom">2dp</item>
+        <item name="itemTextAppearanceActive">@style/TextAppearance.Wx.BottomNav.Active</item>
+        <item name="itemTextAppearanceInactive">@style/TextAppearance.Wx.BottomNav.Inactive</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <style name="TextAppearance.Wx.BottomNav.Active" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">10sp</item>
+        <item name="android:textColor">@color/wx_green</item>
+    </style>
+
+    <style name="TextAppearance.Wx.BottomNav.Inactive" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">10sp</item>
+        <item name="android:textColor">@color/wx_tab_text_inactive</item>
+    </style>
+</resources>

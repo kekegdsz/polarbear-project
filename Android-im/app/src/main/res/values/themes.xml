@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.AndroidIm" parent="android:Theme.Material.Light.NoActionBar">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.AndroidIm" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/wx_green</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="android:colorBackground">@color/wx_bg</item>
+        <item name="colorSurface">@color/wx_bg</item>
         <item name="android:statusBarColor">@color/wx_nav</item>
         <item name="android:navigationBarColor">@color/wx_bg</item>
         <item name="android:windowLightStatusBar">true</item>
+        <!-- targetSdk 35 默认边到边时，与手动 insets 配合；低版本忽略 -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
     <style name="Theme.AndroidIm.Splash" parent="Theme.SplashScreen">

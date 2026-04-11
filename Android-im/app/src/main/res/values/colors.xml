@@ -3,4 +3,11 @@
     <color name="wx_green">#07C160</color>
     <color name="wx_bg">#EDEDED</color>
     <color name="wx_nav">#EDEDED</color>
+    <color name="wx_bubble_out">#95EC69</color>
+    <color name="wx_bubble_in">#FFFFFF</color>
+    <color name="wx_line">#D9D9D9</color>
+    <color name="wx_sub">#888888</color>
+    <!-- 底部 Tab 未选中：接近微信的深灰图标 / 字 -->
+    <color name="wx_tab_icon_inactive">#8E8E93</color>
+    <color name="wx_tab_text_inactive">#8E8E93</color>
 </resources>
