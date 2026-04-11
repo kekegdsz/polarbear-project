@@ -176,6 +176,12 @@ internal class DefaultImClient(
                 val uid = obj.optLong("userId", -1L)
                 if (uid > 0) _events.emit(ImEvent.AuthOk(uid))
             }
+            "PRESENCE" -> {
+                val uid = obj.optLong("userId", -1L)
+                if (uid > 0) {
+                    _events.emit(ImEvent.Presence(uid, obj.optBoolean("online", false)))
+                }
+            }
             "ERROR" -> _events.emit(ImEvent.Error(obj.optString("message", "错误")))
             "CONVERSATIONS_RESULT" -> parseConversations(obj)
             "PRIVATE_MESSAGE" -> parsePrivate(obj)?.let { _events.emit(ImEvent.PrivateMessage(it)) }
@@ -184,12 +190,17 @@ internal class DefaultImClient(
             "USER_INFO_RESULT" -> {
                 val uid = obj.optLong("userId", -1L)
                 if (uid > 0) {
+                    val online = when {
+                        obj.isNull("online") -> null
+                        else -> obj.optBoolean("online", false)
+                    }
                     _events.emit(
                         ImEvent.UserInfoResult(
                             userId = uid,
                             username = obj.optString("username").takeIf { it.isNotEmpty() },
                             nickname = obj.optString("nickname").takeIf { it.isNotEmpty() },
-                            mobile = obj.optString("mobile").takeIf { it.isNotEmpty() }
+                            mobile = obj.optString("mobile").takeIf { it.isNotEmpty() },
+                            online = online
                         )
                     )
                 }

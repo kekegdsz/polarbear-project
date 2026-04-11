@@ -9,6 +9,8 @@ public class DirectoryUserVO {
     private String username;
     private String nickname;
     private String mobile;
+    /** 当前是否有 IM 连接（在线） */
+    private Boolean online;
 
     public Long getId() {
         return id;
@@ -40,5 +42,13 @@ public class DirectoryUserVO {
 
     public void setMobile(String mobile) {
         this.mobile = mobile;
+    }
+
+    public Boolean getOnline() {
+        return online;
+    }
+
+    public void setOnline(Boolean online) {
+        this.online = online;
     }
 }

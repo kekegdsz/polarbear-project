@@ -49,4 +49,12 @@ class UserDirectoryCacheStore(context: Context) {
     suspend fun clear() {
         appContext.userDirectoryCacheDataStore.edit { it.clear() }
     }
+
+    /** 合并某用户的在线状态（用于 IM PRESENCE 推送） */
+    suspend fun patchUserOnline(ownerUserId: Long, userId: Long, online: Boolean) {
+        val cur = read(ownerUserId)
+        if (cur.isEmpty()) return
+        val next = cur.map { u -> if (u.id == userId) u.copy(online = online) else u }
+        save(ownerUserId, next)
+    }
 }

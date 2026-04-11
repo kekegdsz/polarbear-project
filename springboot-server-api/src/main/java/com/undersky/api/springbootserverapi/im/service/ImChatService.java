@@ -65,6 +65,41 @@ public class ImChatService {
         }
     }
 
+    /** 当前是否有有效 IM 连接（Netty / Spring WS 任一在线） */
+    public boolean isUserOnline(long userId) {
+        ImSessionEndpoint ep = sessionManager.endpointOf(userId);
+        return ep != null && ep.isActive();
+    }
+
+    /** 广播用户上下线（除本人外） */
+    public void broadcastPresence(long userId, boolean online) {
+        Map<String, Object> evt = new LinkedHashMap<>();
+        evt.put("type", "PRESENCE");
+        evt.put("userId", userId);
+        evt.put("online", online);
+        sessionManager.forEachOnline((uid, endpoint) -> {
+            if (!uid.equals(userId)) {
+                sendJson(endpoint, evt);
+            }
+        });
+    }
+
+    /**
+     * 新连接认证成功后，向该连接推送当前其他在线用户的 PRESENCE，便于客户端同步列表状态。
+     */
+    public void sendPresenceSnapshotTo(ImSessionEndpoint newEndpoint, long newUserId) {
+        sessionManager.forEachOnline((uid, endpoint) -> {
+            if (uid.equals(newUserId)) {
+                return;
+            }
+            Map<String, Object> evt = new LinkedHashMap<>();
+            evt.put("type", "PRESENCE");
+            evt.put("userId", uid);
+            evt.put("online", true);
+            sendJson(newEndpoint, evt);
+        });
+    }
+
     @Transactional
     public Map<String, Object> createGroup(Long ownerUserId, String name) {
         requireUser(ownerUserId);
@@ -300,6 +335,7 @@ public class ImChatService {
         res.put("mobile", u.getMobile());
         res.put("role", u.getRole());
         res.put("vip", u.getVip());
+        res.put("online", isUserOnline(u.getId()));
         return res;
     }
 

@@ -11,10 +11,13 @@ import com.undersky.androidim.feature.chat.databinding.ItemChatMessageOtherBindi
 import com.undersky.androidim.feature.chat.databinding.ItemChatTimeHeaderBinding
 import com.undersky.androidim.feature.chat.avatarLetter
 import com.undersky.androidim.feature.chat.formatChatListTime
+import com.undersky.androidim.shared.ui.bindPresenceLabel
 
 class ChatMessageAdapter(
     private var selfUserId: Long
 ) : ListAdapter<ChatListItem, RecyclerView.ViewHolder>(Diff) {
+
+    private var onlineByUserId: Map<Long, Boolean> = emptyMap()
 
     companion object {
         private const val TYPE_TIME = 0
@@ -24,6 +27,11 @@ class ChatMessageAdapter(
 
     fun updateSelfUserId(id: Long) {
         selfUserId = id
+    }
+
+    fun setOnlineByUserId(map: Map<Long, Boolean>) {
+        onlineByUserId = map
+        notifyDataSetChanged()
     }
 
     override fun getItemViewType(position: Int): Int =
@@ -51,11 +59,16 @@ class ChatMessageAdapter(
                     holder.binding.textNickname.text = item.displayName
                     holder.binding.avatarLetter.text = avatarLetter(item.displayName)
                     holder.binding.textBody.text = item.message.body
+                    val selfOn = onlineByUserId[selfUserId] ?: true
+                    holder.binding.textPresence.bindPresenceLabel(selfOn, show = true)
                 }
                 is OtherVh -> {
                     holder.binding.textNickname.text = item.displayName
                     holder.binding.avatarLetter.text = avatarLetter(item.displayName)
                     holder.binding.textBody.text = item.message.body
+                    val uid = item.message.fromUserId
+                    val online = onlineByUserId[uid]
+                    holder.binding.textPresence.bindPresenceLabel(online, show = true)
                 }
             }
         }

@@ -13,6 +13,8 @@ import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ImEvent
 import com.undersky.im.core.local.ChatConvKeys
 import com.undersky.im.core.local.ChatMessageLocalStore
+import com.undersky.im.core.local.UserProfileLocalStore
+import com.undersky.im.core.local.isStale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -29,6 +31,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val services = (application as BootstrapApplication).services
     private val localStore = ChatMessageLocalStore(application)
+    private val profileStore: UserProfileLocalStore get() = services.userProfileLocalStore
 
     private val _messagesState = MutableLiveData(
         ChatMessagesState(emptyList(), ChatScroll.NoScroll)
@@ -40,6 +43,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _title = MutableLiveData<String>()
     val title: LiveData<String> = _title
+
+    private val _userOnline = MutableLiveData<Map<Long, Boolean>>(emptyMap())
+    val userOnline: LiveData<Map<Long, Boolean>> = _userOnline
 
     private var eventsJob: Job? = null
     private var session: UserSession? = null
@@ -79,6 +85,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         _title.value = titleFallbackArg
+        _userOnline.value = emptyMap()
         postMessages(emptyList(), ChatScroll.ToBottom)
 
         val selfLabel = session.nickname?.takeIf { it.isNotBlank() }
@@ -88,9 +95,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         prefetchedUserIds.add(session.userId)
 
         val isP2P = peerUserIdArg != -1L
-        if (isP2P) {
-            prefetchedUserIds.add(peerUserIdArg)
-            services.imClient.requestUserInfo(peerUserIdArg)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            profileStore.upsert(session.userId, session.username, session.nickname, null)
+            if (isP2P) {
+                val peerRow = profileStore.getProfile(peerUserIdArg)
+                withContext(Dispatchers.Main) {
+                    if (peerRow != null) {
+                        mergeDisplayName(peerUserIdArg, peerRow.nickname, peerRow.username)
+                        val t = peerRow.nickname?.takeIf { it.isNotBlank() }
+                            ?: peerRow.username?.takeIf { it.isNotBlank() }
+                            ?: titleFallbackArg
+                        _title.postValue(t)
+                    }
+                }
+                if (peerRow == null || peerRow.isStale()) {
+                    services.imClient.requestUserInfo(peerUserIdArg)
+                } else {
+                    synchronized(prefetchedUserIds) { prefetchedUserIds.add(peerUserIdArg) }
+                }
+            }
         }
 
         eventsJob?.cancel()
@@ -116,7 +140,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     is ImEvent.UserInfoResult -> {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            profileStore.upsert(ev.userId, ev.username, ev.nickname, ev.mobile)
+                        }
                         mergeDisplayName(ev.userId, ev.nickname, ev.username)
+                        ev.online?.let { mergeOnline(ev.userId, it) }
                         if (isP2P && ev.userId == peerUserIdArg) {
                             val t = ev.nickname?.takeIf { it.isNotBlank() }
                                 ?: ev.username?.takeIf { it.isNotBlank() }
@@ -124,6 +152,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _title.postValue(t)
                         }
                     }
+                    is ImEvent.Presence -> mergeOnline(ev.userId, ev.online)
                     else -> Unit
                 }
             }
@@ -325,12 +354,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _displayNames.postValue(cur + (userId to label))
     }
 
+    private fun mergeOnline(userId: Long, online: Boolean) {
+        val cur = _userOnline.value.orEmpty()
+        if (cur[userId] == online) return
+        _userOnline.postValue(cur + (userId to online))
+    }
+
     private fun prefetchSenderProfiles(messages: List<ChatMessage>) {
         val me = session?.userId ?: return
-        for (uid in messages.map { it.fromUserId }.distinct()) {
-            if (uid == me) continue
-            if (prefetchedUserIds.add(uid)) {
-                services.imClient.requestUserInfo(uid)
+        viewModelScope.launch(Dispatchers.IO) {
+            for (uid in messages.map { it.fromUserId }.distinct()) {
+                if (uid == me) continue
+                val row = profileStore.getProfile(uid)
+                if (row != null && !row.isStale()) {
+                    withContext(Dispatchers.Main) {
+                        mergeDisplayName(uid, row.nickname, row.username)
+                    }
+                    continue
+                }
+                val shouldRequest = synchronized(prefetchedUserIds) {
+                    if (uid in prefetchedUserIds) false
+                    else {
+                        prefetchedUserIds.add(uid)
+                        true
+                    }
+                }
+                if (shouldRequest) {
+                    services.imClient.requestUserInfo(uid)
+                }
             }
         }
     }

@@ -8,14 +8,32 @@
     android:paddingHorizontal="14dp"
     android:paddingVertical="10dp">
 
-    <TextView
-        android:id="@+id/avatar_letter"
+    <FrameLayout
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:background="@drawable/bg_avatar_circle"
-        android:gravity="center"
-        android:textColor="@android:color/white"
-        android:textSize="16sp" />
+        android:clipChildren="true">
+
+        <TextView
+            android:id="@+id/avatar_letter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_avatar_rounded"
+            android:gravity="center"
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/text_presence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingVertical="2dp"
+            android:textSize="8sp"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"

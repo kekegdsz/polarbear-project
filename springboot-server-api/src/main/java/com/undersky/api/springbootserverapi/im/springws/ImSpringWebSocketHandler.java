@@ -1,6 +1,7 @@
 package com.undersky.api.springbootserverapi.im.springws;
 
 import com.undersky.api.springbootserverapi.im.ImJsonMessageProcessor;
+import com.undersky.api.springbootserverapi.im.service.ImChatService;
 import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
 import com.undersky.api.springbootserverapi.im.session.ImSpringWsEndpoint;
 import org.springframework.stereotype.Component;
@@ -19,11 +20,14 @@ public class ImSpringWebSocketHandler extends TextWebSocketHandler {
 
     private final ImJsonMessageProcessor messageProcessor;
     private final ImSessionManager sessionManager;
+    private final ImChatService chatService;
 
     public ImSpringWebSocketHandler(ImJsonMessageProcessor messageProcessor,
-                                    ImSessionManager sessionManager) {
+                                    ImSessionManager sessionManager,
+                                    ImChatService chatService) {
         this.messageProcessor = messageProcessor;
         this.sessionManager = sessionManager;
+        this.chatService = chatService;
     }
 
     @Override
@@ -45,7 +49,11 @@ public class ImSpringWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         ImSpringWsEndpoint ep = (ImSpringWsEndpoint) session.getAttributes().get(SESSION_EP);
         if (ep != null) {
+            Long uid = ep.getBoundUserId();
             sessionManager.unbind(ep);
+            if (uid != null) {
+                chatService.broadcastPresence(uid, false);
+            }
         }
     }
 }

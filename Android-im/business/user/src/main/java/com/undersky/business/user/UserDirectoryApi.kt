@@ -9,7 +9,9 @@ data class DirectoryUserDto(
     val id: Long,
     val username: String? = null,
     val nickname: String? = null,
-    val mobile: String? = null
+    val mobile: String? = null,
+    /** 服务端根据 IM 连接判断；缺省为 null（旧缓存） */
+    val online: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)

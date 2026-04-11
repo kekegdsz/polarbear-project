@@ -89,6 +89,7 @@ class ChatFragment : Fragment() {
             if (adapter == null) {
                 adapter = ChatMessageAdapter(session.userId)
                 binding.recycler.adapter = adapter
+                adapter?.setOnlineByUserId(viewModel.userOnline.value.orEmpty())
             } else {
                 adapter?.updateSelfUserId(session.userId)
             }
@@ -105,6 +106,10 @@ class ChatFragment : Fragment() {
         viewModel.displayNames.observe(viewLifecycleOwner) { map ->
             lastDisplayNames = map
             submitChatList(ChatScroll.NoScroll)
+        }
+
+        viewModel.userOnline.observe(viewLifecycleOwner) { map ->
+            adapter?.setOnlineByUserId(map)
         }
 
         viewModel.messagesState.observe(viewLifecycleOwner) { state ->

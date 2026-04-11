@@ -1,6 +1,7 @@
 package com.undersky.api.springbootserverapi.im.netty;
 
 import com.undersky.api.springbootserverapi.im.ImJsonMessageProcessor;
+import com.undersky.api.springbootserverapi.im.service.ImChatService;
 import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -13,13 +14,16 @@ public class ImChannelInitializer extends ChannelInitializer<SocketChannel> {
 
     private final ImJsonMessageProcessor messageProcessor;
     private final ImSessionManager sessionManager;
+    private final ImChatService chatService;
     private final String websocketPath;
 
     public ImChannelInitializer(ImJsonMessageProcessor messageProcessor,
                                 ImSessionManager sessionManager,
+                                ImChatService chatService,
                                 String websocketPath) {
         this.messageProcessor = messageProcessor;
         this.sessionManager = sessionManager;
+        this.chatService = chatService;
         this.websocketPath = websocketPath;
     }
 
@@ -30,6 +34,6 @@ public class ImChannelInitializer extends ChannelInitializer<SocketChannel> {
                 .addLast(new HttpObjectAggregator(65536))
                 .addLast(new ChunkedWriteHandler())
                 .addLast(new WebSocketServerProtocolHandler(websocketPath))
-                .addLast(new ImWebSocketHandler(messageProcessor, sessionManager));
+                .addLast(new ImWebSocketHandler(messageProcessor, sessionManager, chatService));
     }
 }

@@ -83,6 +83,8 @@ public class ImJsonMessageProcessor {
         long userId = longVal(msg.get("userId"));
         chatService.requireUser(userId);
         sessionManager.bind(userId, ep);
+        chatService.broadcastPresence(userId, true);
+        chatService.sendPresenceSnapshotTo(ep, userId);
         Map<String, Object> ok = new LinkedHashMap<>();
         ok.put("type", "AUTH_OK");
         ok.put("userId", userId);

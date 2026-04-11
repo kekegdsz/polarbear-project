@@ -29,6 +29,10 @@ class ContactsFragment : Fragment() {
         ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application)
     }
 
+    private val tabsViewModel: MainTabsViewModel by activityViewModels {
+        ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application)
+    }
+
     private var adapter: ContactAdapter? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -54,8 +58,13 @@ class ContactsFragment : Fragment() {
         }
         binding.recycler.adapter = adapter
 
+        tabsViewModel.userPresence.observe(viewLifecycleOwner) { map ->
+            adapter?.updateImPresence(map.orEmpty())
+        }
+
         contactsViewModel.users.observe(viewLifecycleOwner) { users ->
             adapter?.submitList(users)
+            tabsViewModel.userPresence.value?.let { adapter?.updateImPresence(it) }
             updateStates(users, contactsViewModel.loading.value == true, contactsViewModel.error.value)
         }
 

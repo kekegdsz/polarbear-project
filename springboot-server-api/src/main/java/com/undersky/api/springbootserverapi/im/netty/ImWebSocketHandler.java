@@ -1,6 +1,7 @@
 package com.undersky.api.springbootserverapi.im.netty;
 
 import com.undersky.api.springbootserverapi.im.ImJsonMessageProcessor;
+import com.undersky.api.springbootserverapi.im.service.ImChatService;
 import com.undersky.api.springbootserverapi.im.session.ImChannelAttributes;
 import com.undersky.api.springbootserverapi.im.session.ImNettyEndpoint;
 import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
@@ -16,11 +17,14 @@ public class ImWebSocketHandler extends SimpleChannelInboundHandler<TextWebSocke
 
     private final ImJsonMessageProcessor messageProcessor;
     private final ImSessionManager sessionManager;
+    private final ImChatService chatService;
 
     public ImWebSocketHandler(ImJsonMessageProcessor messageProcessor,
-                            ImSessionManager sessionManager) {
+                            ImSessionManager sessionManager,
+                            ImChatService chatService) {
         this.messageProcessor = messageProcessor;
         this.sessionManager = sessionManager;
+        this.chatService = chatService;
     }
 
     private static ImNettyEndpoint endpoint(Channel ch) {
@@ -36,7 +40,11 @@ public class ImWebSocketHandler extends SimpleChannelInboundHandler<TextWebSocke
     public void channelInactive(ChannelHandlerContext ctx) {
         ImNettyEndpoint ep = ctx.channel().attr(ImChannelAttributes.ENDPOINT).get();
         if (ep != null) {
+            Long uid = ep.getBoundUserId();
             sessionManager.unbind(ep);
+            if (uid != null) {
+                chatService.broadcastPresence(uid, false);
+            }
         }
     }
 

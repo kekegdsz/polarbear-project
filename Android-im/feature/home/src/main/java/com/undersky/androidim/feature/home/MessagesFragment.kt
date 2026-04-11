@@ -72,6 +72,11 @@ class MessagesFragment : Fragment() {
                 adapter?.updateSession(session)
             }
             tabsViewModel.conversations.value?.let { adapter?.submitList(it) }
+            tabsViewModel.userPresence.value?.let { adapter?.updateImPresence(it) }
+        }
+
+        tabsViewModel.userPresence.observe(viewLifecycleOwner) { map ->
+            adapter?.updateImPresence(map.orEmpty())
         }
 
         tabsViewModel.conversations.observe(viewLifecycleOwner) { list ->

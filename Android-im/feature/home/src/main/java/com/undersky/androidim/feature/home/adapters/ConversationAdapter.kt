@@ -10,6 +10,7 @@ import com.undersky.androidim.feature.home.databinding.ItemConversationBinding
 import com.undersky.business.user.DirectoryUserDto
 import com.undersky.business.user.UserSession
 import com.undersky.im.core.api.ConversationItem
+import com.undersky.androidim.shared.ui.bindPresenceLabel
 
 class ConversationAdapter(
     private var session: UserSession,
@@ -17,6 +18,8 @@ class ConversationAdapter(
 ) : ListAdapter<ConversationItem, ConversationAdapter.Vh>(Diff) {
 
     private var directoryById: Map<Long, DirectoryUserDto> = emptyMap()
+    /** 与 MainTabsViewModel.userPresence 同步，优先于通讯录里的 online */
+    private var imPresence: Map<Long, Boolean> = emptyMap()
 
     fun updateSession(s: UserSession) {
         session = s
@@ -27,13 +30,18 @@ class ConversationAdapter(
         notifyDataSetChanged()
     }
 
+    fun updateImPresence(map: Map<Long, Boolean>) {
+        imPresence = map
+        notifyDataSetChanged()
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
         val binding = ItemConversationBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return Vh(binding)
     }
 
     override fun onBindViewHolder(holder: Vh, position: Int) {
-        holder.bind(getItem(position), session, directoryById, onOpen)
+        holder.bind(getItem(position), session, directoryById, imPresence, onOpen)
     }
 
     class Vh(private val binding: ItemConversationBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -41,6 +49,7 @@ class ConversationAdapter(
             item: ConversationItem,
             session: UserSession,
             directoryById: Map<Long, DirectoryUserDto>,
+            imPresence: Map<Long, Boolean>,
             onOpen: (ConversationItem) -> Unit
         ) {
             val title = when (item.convType) {
@@ -64,6 +73,15 @@ class ConversationAdapter(
             binding.textTitle.text = title
             binding.textPreview.text = item.lastMessage.body
             binding.textTime.text = item.lastMessage.createdAt?.takeLast(8).orEmpty()
+            val p2pPeer = item.convType == "P2P" && (item.peerUserId ?: 0L) > 0L &&
+                (item.peerUserId ?: 0L) != session.userId
+            if (p2pPeer) {
+                val peerId = item.peerUserId!!
+                val online = imPresence[peerId] ?: directoryById[peerId]?.online
+                binding.textPresence.bindPresenceLabel(online, show = true)
+            } else {
+                binding.textPresence.bindPresenceLabel(null, show = false)
+            }
             val u = item.unreadCount
             if (u <= 0) {
                 binding.badgeUnread.visibility = View.GONE

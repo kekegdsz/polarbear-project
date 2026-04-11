@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
 /**
  * userId -> 当前连接（Netty 或 Spring WebSocket 二选一在线；新连接挤掉旧连接）
@@ -30,5 +31,10 @@ public class ImSessionManager {
 
     public ImSessionEndpoint endpointOf(Long userId) {
         return userIdToEndpoint.get(userId);
+    }
+
+    /** 遍历当前在线会话（userId → endpoint） */
+    public void forEachOnline(BiConsumer<Long, ImSessionEndpoint> consumer) {
+        userIdToEndpoint.forEach(consumer);
     }
 }

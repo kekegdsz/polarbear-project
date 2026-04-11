@@ -9,8 +9,10 @@ import com.undersky.androidim.bootstrap.BootstrapApplication
 import com.undersky.business.user.AuthTokenHolder
 import com.undersky.business.user.DirectoryUserDto
 import com.undersky.business.user.UserSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ContactsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -35,6 +37,11 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
         cacheJob = viewModelScope.launch {
             AuthTokenHolder.set(session.token)
             services.userDirectoryCacheStore.directoryFlow(session.userId).collect { raw ->
+                withContext(Dispatchers.IO) {
+                    for (u in raw) {
+                        services.userProfileLocalStore.upsert(u.id, u.username, u.nickname, u.mobile)
+                    }
+                }
                 _users.postValue(sortedDirectoryUsers(raw, session.userId))
             }
         }

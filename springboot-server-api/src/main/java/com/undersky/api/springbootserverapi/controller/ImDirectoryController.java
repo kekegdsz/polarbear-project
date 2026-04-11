@@ -1,5 +1,6 @@
 package com.undersky.api.springbootserverapi.controller;
 
+import com.undersky.api.springbootserverapi.im.service.ImChatService;
 import com.undersky.api.springbootserverapi.mapper.UserMapper;
 import com.undersky.api.springbootserverapi.model.dto.Result;
 import com.undersky.api.springbootserverapi.model.entity.User;
@@ -22,9 +23,11 @@ import java.util.stream.Collectors;
 public class ImDirectoryController {
 
     private final UserMapper userMapper;
+    private final ImChatService imChatService;
 
-    public ImDirectoryController(UserMapper userMapper) {
+    public ImDirectoryController(UserMapper userMapper, ImChatService imChatService) {
         this.userMapper = userMapper;
+        this.imChatService = imChatService;
     }
 
     /**
@@ -58,6 +61,7 @@ public class ImDirectoryController {
         vo.setUsername(user.getUsername());
         vo.setNickname(user.getNickname());
         vo.setMobile(user.getMobile());
+        vo.setOnline(imChatService.isUserOnline(user.getId()));
         return vo;
     }
 }

@@ -18,6 +18,7 @@ import com.undersky.business.user.UserDirectoryRepository
 import com.undersky.im.core.ImCore
 import com.undersky.im.core.api.ImClient
 import com.undersky.im.core.local.UnreadCountStore
+import com.undersky.im.core.local.UserProfileLocalStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +37,7 @@ class AppServices private constructor(
     val unreadCountStore: UnreadCountStore,
     val contactStore: ContactStore,
     val userDirectoryCacheStore: UserDirectoryCacheStore,
+    val userProfileLocalStore: UserProfileLocalStore,
     val authRepository: AuthRepository,
     val userDirectoryRepository: UserDirectoryRepository,
     val imClient: ImClient,
@@ -73,6 +75,7 @@ class AppServices private constructor(
             val unreadCountStore = UnreadCountStore(application)
             val contactStore = ContactStore(application)
             val userDirectoryCacheStore = UserDirectoryCacheStore(application)
+            val userProfileLocalStore = UserProfileLocalStore(application)
 
             val moshi = Moshi.Builder()
                 .add(KotlinJsonAdapterFactory())
@@ -126,6 +129,7 @@ class AppServices private constructor(
                 unreadCountStore = unreadCountStore,
                 contactStore = contactStore,
                 userDirectoryCacheStore = userDirectoryCacheStore,
+                userProfileLocalStore = userProfileLocalStore,
                 authRepository = authRepository,
                 userDirectoryRepository = userDirectoryRepository,
                 imClient = imClient,

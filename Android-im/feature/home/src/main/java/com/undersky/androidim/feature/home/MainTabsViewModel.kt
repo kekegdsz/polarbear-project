@@ -13,10 +13,11 @@ import com.undersky.androidim.notify.ImMessageNotifier
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ConversationItem
 import com.undersky.im.core.api.ImEvent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import kotlin.jvm.Volatile
 
 class MainTabsViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,6 +30,10 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
 
     private val _totalUnread = MutableLiveData(0)
     val totalUnread: LiveData<Int> = _totalUnread
+
+    /** IM 实时在线（含不在通讯录缓存中的会话对方） */
+    private val _userPresence = MutableLiveData<Map<Long, Boolean>>(emptyMap())
+    val userPresence: LiveData<Map<Long, Boolean>> = _userPresence
 
     @Volatile
     private var selfUserId: Long? = null
@@ -49,6 +54,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                 .distinctUntilChanged()
                 .collect { uid ->
                     selfUserId = uid
+                    _userPresence.postValue(emptyMap())
                     if (uid == null) {
                         unreadStore.clearAll()
                         openP2PPeer = null
@@ -87,7 +93,10 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
         eventsJob = viewModelScope.launch {
             services.imClient.events.collect { ev ->
                 when (ev) {
-                    is ImEvent.AuthOk -> services.imClient.requestConversations()
+                    is ImEvent.AuthOk -> {
+                        _userPresence.postValue(emptyMap())
+                        services.imClient.requestConversations()
+                    }
                     is ImEvent.Conversations -> publishMerged(ev.items)
                     is ImEvent.PrivateMessage -> {
                         maybeIncrementPrivate(ev.message)
@@ -98,6 +107,14 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                         maybeIncrementGroup(ev.message)
                         maybeNotifyIncomingGroup(ev.message)
                         services.imClient.requestConversations()
+                    }
+                    is ImEvent.Presence -> {
+                        val me = selfUserId ?: return@collect
+                        val cur = _userPresence.value.orEmpty()
+                        _userPresence.postValue(cur + (ev.userId to ev.online))
+                        viewModelScope.launch(Dispatchers.IO) {
+                            services.userDirectoryCacheStore.patchUserOnline(me, ev.userId, ev.online)
+                        }
                     }
                     else -> Unit
                 }

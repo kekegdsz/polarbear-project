@@ -2,6 +2,7 @@ package com.undersky.api.springbootserverapi.im.netty;
 
 import com.undersky.api.springbootserverapi.im.ImJsonMessageProcessor;
 import com.undersky.api.springbootserverapi.im.config.ImNettyProperties;
+import com.undersky.api.springbootserverapi.im.service.ImChatService;
 import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -29,6 +30,7 @@ public class ImNettyServer {
     private final ImNettyProperties properties;
     private final ImJsonMessageProcessor messageProcessor;
     private final ImSessionManager sessionManager;
+    private final ImChatService chatService;
     private final Environment environment;
 
     private EventLoopGroup bossGroup;
@@ -38,10 +40,12 @@ public class ImNettyServer {
     public ImNettyServer(ImNettyProperties properties,
                          ImJsonMessageProcessor messageProcessor,
                          ImSessionManager sessionManager,
+                         ImChatService chatService,
                          Environment environment) {
         this.properties = properties;
         this.messageProcessor = messageProcessor;
         this.sessionManager = sessionManager;
+        this.chatService = chatService;
         this.environment = environment;
     }
 
@@ -60,6 +64,7 @@ public class ImNettyServer {
                     .childHandler(new ImChannelInitializer(
                             messageProcessor,
                             sessionManager,
+                            chatService,
                             properties.getPath()));
             ChannelFuture bind = b.bind(properties.getPort()).sync();
             serverChannel = bind.channel();
