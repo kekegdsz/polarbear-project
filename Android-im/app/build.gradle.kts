@@ -5,15 +5,16 @@ plugins {
 
 android {
     namespace = "com.undersky.androidim"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.undersky.androidim"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "API_BASE_URL", "\"http://183.56.251.215:8082\"")
+        // 经 Nginx（8081）走 /api；云厂商常封 80，且 8082 可能未对公网放行
+        buildConfigField("String", "API_BASE_URL", "\"http://183.56.251.215:8081\"")
         buildConfigField("String", "IM_WS_PATH", "\"/api/im/ws\"")
     }
 

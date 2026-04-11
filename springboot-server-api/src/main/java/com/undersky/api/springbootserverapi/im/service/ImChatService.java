@@ -195,16 +195,32 @@ public class ImChatService {
         }
     }
 
-    public Map<String, Object> historyP2P(Long viewerId, Long peerId, Long beforeId, int limit) {
-        List<ImMessage> list = messageMapper.listP2PHistory(viewerId, peerId, beforeId, Math.min(limit, 200));
+    public Map<String, Object> historyP2P(Long viewerId, Long peerId, Long beforeId, Long afterId, int limit) {
+        if (beforeId != null && afterId != null) {
+            throw new IllegalArgumentException("beforeId 与 afterId 不能同时指定");
+        }
+        int lim = Math.min(limit, 200);
+        if (afterId != null) {
+            List<ImMessage> list = messageMapper.listP2PHistoryAfter(viewerId, peerId, afterId, lim);
+            return historyResultAscending(list);
+        }
+        List<ImMessage> list = messageMapper.listP2PHistory(viewerId, peerId, beforeId, lim);
         return historyResult(list);
     }
 
-    public Map<String, Object> historyGroup(Long viewerId, Long groupId, Long beforeId, int limit) {
+    public Map<String, Object> historyGroup(Long viewerId, Long groupId, Long beforeId, Long afterId, int limit) {
         if (groupMemberMapper.countMember(groupId, viewerId) == 0) {
             throw new IllegalArgumentException("不在该群内");
         }
-        List<ImMessage> list = messageMapper.listGroupHistory(groupId, beforeId, Math.min(limit, 200));
+        if (beforeId != null && afterId != null) {
+            throw new IllegalArgumentException("beforeId 与 afterId 不能同时指定");
+        }
+        int lim = Math.min(limit, 200);
+        if (afterId != null) {
+            List<ImMessage> list = messageMapper.listGroupHistoryAfter(groupId, afterId, lim);
+            return historyResultAscending(list);
+        }
+        List<ImMessage> list = messageMapper.listGroupHistory(groupId, beforeId, lim);
         return historyResult(list);
     }
 
@@ -212,6 +228,18 @@ public class ImChatService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (int i = list.size() - 1; i >= 0; i--) {
             rows.add(messageRow(list.get(i)));
+        }
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("type", "HISTORY_RESULT");
+        res.put("messages", rows);
+        return res;
+    }
+
+    /** 列表已按 id 升序（增量同步） */
+    private Map<String, Object> historyResultAscending(List<ImMessage> list) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (ImMessage m : list) {
+            rows.add(messageRow(m));
         }
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("type", "HISTORY_RESULT");

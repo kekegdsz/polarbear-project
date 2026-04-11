@@ -22,6 +22,17 @@ public interface ImMessageMapper {
             @Param("beforeId") Long beforeId,
             @Param("limit") int limit);
 
+    List<ImMessage> listP2PHistoryAfter(
+            @Param("userId") Long userId,
+            @Param("peerUserId") Long peerUserId,
+            @Param("afterId") Long afterId,
+            @Param("limit") int limit);
+
+    List<ImMessage> listGroupHistoryAfter(
+            @Param("groupId") Long groupId,
+            @Param("afterId") Long afterId,
+            @Param("limit") int limit);
+
     List<ImMessage> listRecentP2PPeers(@Param("userId") Long userId);
 
     List<ImMessage> listRecentGroupSummaries(@Param("userId") Long userId);

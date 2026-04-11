@@ -83,14 +83,22 @@ internal class DefaultImClient(
         sendRaw("""{"type":"USER_INFO","userId":$userId}""")
     }
 
-    override fun requestHistoryP2P(peerUserId: Long, beforeId: Long?, limit: Int) {
-        val before = beforeId?.let { ",\"beforeId\":$it" } ?: ""
-        sendRaw("""{"type":"HISTORY","mode":"P2P","peerUserId":$peerUserId,"limit":$limit$before}""")
+    override fun requestHistoryP2P(peerUserId: Long, beforeId: Long?, afterId: Long?, limit: Int) {
+        require(beforeId == null || afterId == null) { "beforeId 与 afterId 不能同时指定" }
+        val extra = buildString {
+            beforeId?.let { append(",\"beforeId\":$it") }
+            afterId?.let { append(",\"afterId\":$it") }
+        }
+        sendRaw("""{"type":"HISTORY","mode":"P2P","peerUserId":$peerUserId,"limit":$limit$extra}""")
     }
 
-    override fun requestHistoryGroup(groupId: Long, beforeId: Long?, limit: Int) {
-        val before = beforeId?.let { ",\"beforeId\":$it" } ?: ""
-        sendRaw("""{"type":"HISTORY","mode":"GROUP","groupId":$groupId,"limit":$limit$before}""")
+    override fun requestHistoryGroup(groupId: Long, beforeId: Long?, afterId: Long?, limit: Int) {
+        require(beforeId == null || afterId == null) { "beforeId 与 afterId 不能同时指定" }
+        val extra = buildString {
+            beforeId?.let { append(",\"beforeId\":$it") }
+            afterId?.let { append(",\"afterId\":$it") }
+        }
+        sendRaw("""{"type":"HISTORY","mode":"GROUP","groupId":$groupId,"limit":$limit$extra}""")
     }
 
     override fun sendPrivate(toUserId: Long, body: String) {

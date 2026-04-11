@@ -8,7 +8,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.undersky.androidim.bootstrap.session.SessionViewModel
 import com.undersky.androidim.feature.chat.adapters.ChatMessageAdapter
 import com.undersky.androidim.feature.chat.toChatListItems
@@ -41,6 +43,9 @@ class ChatFragment : Fragment() {
     private var lastMessages: List<ChatMessage> = emptyList()
     private var lastDisplayNames: Map<Long, String> = emptyMap()
 
+    /** 上一帧 IME 底边 inset，用于检测键盘从关闭到打开 */
+    private var lastImeBottomPx: Int = 0
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentChatBinding.inflate(inflater, container, false)
         return binding.root
@@ -48,7 +53,14 @@ class ChatFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.root.applyWindowInsetsPadding(padTop = true, padBottom = true)
+        binding.root.applyWindowInsetsPadding(padTop = true, padBottom = true) { insets ->
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val keyboardOpened = imeBottom > 0 && lastImeBottomPx == 0
+            lastImeBottomPx = imeBottom
+            if (keyboardOpened) {
+                scrollListToBottomAfterIme()
+            }
+        }
         val peer = arguments?.getLong("peerUserId") ?: -1L
         val group = arguments?.getLong("groupId") ?: -1L
         peerUserId = peer
@@ -59,7 +71,18 @@ class ChatFragment : Fragment() {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
-        binding.recycler.layoutManager = LinearLayoutManager(requireContext())
+        val layoutManager = LinearLayoutManager(requireContext())
+        binding.recycler.layoutManager = layoutManager
+
+        binding.recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (dy >= 0) return
+                val first = layoutManager.findFirstVisibleItemPosition()
+                if (first <= LOAD_MORE_THRESHOLD) {
+                    viewModel.loadOlderMessages()
+                }
+            }
+        })
 
         sessionViewModel.session.observe(viewLifecycleOwner) { session ->
             if (session == null) return@observe
@@ -81,12 +104,12 @@ class ChatFragment : Fragment() {
 
         viewModel.displayNames.observe(viewLifecycleOwner) { map ->
             lastDisplayNames = map
-            submitChatList()
+            submitChatList(ChatScroll.NoScroll)
         }
 
-        viewModel.messages.observe(viewLifecycleOwner) { list ->
-            lastMessages = list
-            submitChatList()
+        viewModel.messagesState.observe(viewLifecycleOwner) { state ->
+            lastMessages = state.messages
+            submitChatList(state.scroll)
         }
 
         binding.buttonSend.setOnClickListener {
@@ -117,12 +140,40 @@ class ChatFragment : Fragment() {
         _binding = null
     }
 
-    private fun submitChatList() {
-        val items = lastMessages.toChatListItems(lastDisplayNames)
-        adapter?.submitList(items) {
-            if (items.isNotEmpty()) {
-                binding.recycler.scrollToPosition(items.lastIndex)
+    /** 键盘顶起布局后再滚一次，避免首次 inset 时 RecyclerView 高度未更新 */
+    private fun scrollListToBottomAfterIme() {
+        binding.recycler.post {
+            val cnt = adapter?.itemCount ?: 0
+            if (cnt > 0) {
+                binding.recycler.scrollToPosition(cnt - 1)
+            }
+            binding.recycler.post {
+                val c = adapter?.itemCount ?: 0
+                if (c > 0) binding.recycler.scrollToPosition(c - 1)
             }
         }
+    }
+
+    private fun submitChatList(scroll: ChatScroll) {
+        val items = lastMessages.toChatListItems(lastDisplayNames)
+        val oldScrollRange = binding.recycler.computeVerticalScrollRange()
+        adapter?.submitList(items) {
+            when (scroll) {
+                ChatScroll.ToBottom -> {
+                    if (items.isNotEmpty()) {
+                        binding.recycler.scrollToPosition(items.lastIndex)
+                    }
+                }
+                ChatScroll.KeepScroll -> {
+                    val newRange = binding.recycler.computeVerticalScrollRange()
+                    binding.recycler.scrollBy(0, newRange - oldScrollRange)
+                }
+                ChatScroll.NoScroll -> Unit
+            }
+        }
+    }
+
+    companion object {
+        private const val LOAD_MORE_THRESHOLD = 2
     }
 }

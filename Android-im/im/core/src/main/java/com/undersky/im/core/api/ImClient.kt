@@ -1,5 +1,6 @@
 package com.undersky.im.core.api
 
+import com.undersky.im.core.CHAT_PAGE_SIZE
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -21,9 +22,19 @@ interface ImClient {
 
     fun requestUserInfo(userId: Long)
 
-    fun requestHistoryP2P(peerUserId: Long, beforeId: Long? = null, limit: Int = 50)
+    fun requestHistoryP2P(
+        peerUserId: Long,
+        beforeId: Long? = null,
+        afterId: Long? = null,
+        limit: Int = CHAT_PAGE_SIZE
+    )
 
-    fun requestHistoryGroup(groupId: Long, beforeId: Long? = null, limit: Int = 50)
+    fun requestHistoryGroup(
+        groupId: Long,
+        beforeId: Long? = null,
+        afterId: Long? = null,
+        limit: Int = CHAT_PAGE_SIZE
+    )
 
     fun sendPrivate(toUserId: Long, body: String)
 

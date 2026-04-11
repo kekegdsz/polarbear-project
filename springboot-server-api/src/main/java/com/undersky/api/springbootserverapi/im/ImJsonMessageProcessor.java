@@ -125,6 +125,10 @@ public class ImJsonMessageProcessor {
         requireAuth(ep);
         String mode = msg.get("mode") == null ? "" : String.valueOf(msg.get("mode"));
         Long beforeId = msg.get("beforeId") == null ? null : longVal(msg.get("beforeId"));
+        Long afterId = msg.get("afterId") == null ? null : longVal(msg.get("afterId"));
+        if (beforeId != null && afterId != null) {
+            throw new IllegalArgumentException("beforeId 与 afterId 不能同时指定");
+        }
         int limit = 50;
         if (msg.get("limit") instanceof Number n) {
             limit = n.intValue();
@@ -132,10 +136,10 @@ public class ImJsonMessageProcessor {
         Map<String, Object> res;
         if ("P2P".equalsIgnoreCase(mode)) {
             long peer = longVal(msg.get("peerUserId"));
-            res = chatService.historyP2P(uid(ep), peer, beforeId, limit);
+            res = chatService.historyP2P(uid(ep), peer, beforeId, afterId, limit);
         } else if ("GROUP".equalsIgnoreCase(mode)) {
             long gid = longVal(msg.get("groupId"));
-            res = chatService.historyGroup(uid(ep), gid, beforeId, limit);
+            res = chatService.historyGroup(uid(ep), gid, beforeId, afterId, limit);
         } else {
             throw new IllegalArgumentException("HISTORY.mode 需为 P2P 或 GROUP");
         }

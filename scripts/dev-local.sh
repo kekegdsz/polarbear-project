@@ -11,7 +11,7 @@ if [[ ! -d node_modules ]]; then
 fi
 
 cd "$ROOT/springboot-server-api"
-echo ">>> 启动 Spring Boot (8081)…"
+echo ">>> 启动 Spring Boot (8082，/api + WebSocket)…"
 ./mvnw -q spring-boot:run &
 BACKEND_PID=$!
 
@@ -25,7 +25,7 @@ trap cleanup EXIT INT TERM
 
 echo ">>> 等待后端就绪…"
 for i in $(seq 1 90); do
-  if curl -sf -o /dev/null "http://127.0.0.1:8081/api/hello"; then
+  if curl -sf -o /dev/null "http://127.0.0.1:8082/api/hello"; then
     echo ">>> 后端已就绪"
     break
   fi
@@ -37,5 +37,5 @@ for i in $(seq 1 90); do
 done
 
 cd "$ROOT/vue-web-server"
-echo ">>> 启动 Vite (http://localhost:8082)…"
+echo ">>> 启动 Vite 网页 (http://localhost:8081，/api 代理到 8082)…"
 npm run dev

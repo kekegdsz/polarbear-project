@@ -64,7 +64,7 @@ public class ImNettyServer {
             ChannelFuture bind = b.bind(properties.getPort()).sync();
             serverChannel = bind.channel();
             log.info("IM Netty WebSocket 已启动: ws://0.0.0.0:{}{}", properties.getPort(), properties.getPath());
-            String port = environment.getProperty("server.port", "8081");
+            String port = environment.getProperty("server.port", "8082");
             String ctx = environment.getProperty("server.servlet.context-path", "");
             if ("/".equals(ctx)) {
                 ctx = "";

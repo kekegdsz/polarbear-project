@@ -9,4 +9,4 @@ DEPLOY_PATH="${DEPLOY_PATH:-/www/wwwroot/183.56.251.215}"
 npm run build
 rsync -avz --delete --exclude '.user.ini' dist/ "${DEPLOY_HOST}:${DEPLOY_PATH}/"
 echo "✅ 静态资源已同步 → ${DEPLOY_HOST}:${DEPLOY_PATH}"
-echo "   访问: http://183.56.251.215/ （若打不开请查云安全组是否放行 TCP 80）"
+echo "   访问: http://183.56.251.215:8081/ （站点监听 8081 或 80 被封时用此端口；另需放行 Spring 本机 8082 供 Nginx 反代）"

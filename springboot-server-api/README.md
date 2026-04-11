@@ -32,7 +32,7 @@ src/main/java/com/undersky/api/springbootserverapi/
 ./mvnw spring-boot:run
 ```
 
-默认端口 8081，访问：http://localhost:8081/api/hello
+默认端口 **8082**（与前端开发站 8081 分离），访问：http://localhost:8082/api/hello
 
 ### 打包
 
