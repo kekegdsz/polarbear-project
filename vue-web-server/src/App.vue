@@ -2,6 +2,14 @@
   <div class="app">
     <header class="top-bar">
       <div class="top-left">
+        <router-link
+          to="/"
+          class="brand"
+          :aria-label="`回到${appConfig.name}首页`"
+        >
+          <img class="brand-logo" src="/favicon.svg" alt="" width="32" height="32" />
+          <span class="brand-name">{{ appConfig.shortName }}</span>
+        </router-link>
         <span v-if="isInAdminArea" class="hello-user">Hello，{{ profileUsername || '管理员' }}</span>
         <nav v-else class="top-nav">
           <router-link to="/api-doc" class="top-link">API 文档</router-link>
@@ -69,6 +77,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiRequest } from './apiClient'
+import { appConfig } from './config/app'
 
 const route = useRoute()
 const router = useRouter()
@@ -202,6 +211,36 @@ const handleLogout = () => {
 
 .top-left {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.brand-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.02em;
+}
+
+.brand:hover .brand-name {
+  color: #0071e3;
 }
 
 .top-nav {
