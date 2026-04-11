@@ -15,14 +15,21 @@ import com.undersky.androidim.ui.screens.chat.ChatScreen
 import com.undersky.androidim.ui.screens.main.MainTabsScreen
 
 @Composable
-fun ImRootNav(session: UserSession?, app: ImApp) {
+fun ImRootNav(
+    session: UserSession?,
+    app: ImApp,
+    startDestination: String
+) {
     val navController = rememberNavController()
 
     LaunchedEffect(session?.userId) {
         if (session != null) {
-            navController.navigate("main") {
-                popUpTo("login") { inclusive = true }
-                launchSingleTop = true
+            val route = navController.currentBackStackEntry?.destination?.route
+            if (route != "main") {
+                navController.navigate("main") {
+                    popUpTo("login") { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         } else {
             val route = navController.currentBackStackEntry?.destination?.route
@@ -35,7 +42,7 @@ fun ImRootNav(session: UserSession?, app: ImApp) {
         }
     }
 
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
             LoginScreen(
                 app = app,

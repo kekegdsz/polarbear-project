@@ -39,13 +39,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.undersky.androidim.ImApp
+import com.undersky.androidim.data.AuthTokenHolder
 import com.undersky.androidim.data.DirectoryUserDto
 import com.undersky.androidim.data.UserSession
 import com.undersky.androidim.ui.theme.WxGreen
 import com.undersky.androidim.ui.theme.WxLine
 import com.undersky.androidim.ui.theme.WxNav
 import com.undersky.androidim.ui.theme.WxSub
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,25 +58,37 @@ fun ContactsTab(
     var users by remember { mutableStateOf<List<DirectoryUserDto>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var refreshKey by remember { mutableIntStateOf(0) }
+    var refreshTick by remember(session.userId) { mutableIntStateOf(0) }
 
-    LaunchedEffect(session.userId, session.token, refreshKey) {
+    LaunchedEffect(session.userId) {
+        AuthTokenHolder.set(session.token)
+        app.userDirectoryCacheStore.directoryFlow(session.userId).collect { raw ->
+            users = sortedDirectoryUsers(raw, session.userId)
+        }
+    }
+
+    LaunchedEffect(session.userId, refreshTick) {
+        AuthTokenHolder.set(session.token)
+        if (refreshTick == 0) {
+            if (app.userDirectoryCacheStore.read(session.userId).isNotEmpty()) {
+                return@LaunchedEffect
+            }
+        }
         loading = true
         error = null
         try {
-            app.userDirectoryRepository.listAll(session.token.orEmpty())
+            app.userDirectoryRepository.listAll()
                 .onSuccess { list ->
-                    users = list
-                        .filter { it.id != session.userId }
-                        .sortedWith(
-                            compareBy<DirectoryUserDto> { (it.username ?: "").isBlank() }
-                                .thenBy { it.username?.lowercase() ?: "" }
-                                .thenBy { it.id }
-                        )
+                    app.userDirectoryCacheStore.save(session.userId, list)
+                    error = null
                 }
                 .onFailure { e ->
-                    error = e.message ?: "加载失败"
-                    users = emptyList()
+                    val cachedEmpty = app.userDirectoryCacheStore.read(session.userId).isEmpty()
+                    if (cachedEmpty) {
+                        error = e.message ?: "加载失败"
+                    } else {
+                        error = null
+                    }
                 }
         } finally {
             loading = false
@@ -90,7 +102,7 @@ fun ContactsTab(
                 title = { Text("通讯录", fontSize = 22.sp) },
                 actions = {
                     IconButton(
-                        onClick = { refreshKey++ },
+                        onClick = { refreshTick++ },
                         enabled = !loading
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = "刷新")
@@ -121,6 +133,20 @@ fun ContactsTab(
                                 "点击右上角刷新重试",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = WxSub
+                            )
+                        }
+                    }
+                }
+                users.isEmpty() && !loading && error == null -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("暂无其他用户", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.size(8.dp))
+                            Text(
+                                "服务器上只有您一个账号时，列表会为空（已自动隐藏自己）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WxSub,
+                                modifier = Modifier.padding(horizontal = 32.dp)
                             )
                         }
                     }
@@ -179,3 +205,12 @@ fun ContactsTab(
         }
     }
 }
+
+private fun sortedDirectoryUsers(raw: List<DirectoryUserDto>, selfId: Long): List<DirectoryUserDto> =
+    raw
+        .filter { it.id != selfId }
+        .sortedWith(
+            compareBy<DirectoryUserDto> { (it.username ?: "").isBlank() }
+                .thenBy { it.username?.lowercase() ?: "" }
+                .thenBy { it.id }
+        )

@@ -2,7 +2,6 @@ package com.undersky.androidim.data
 
 import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
-import retrofit2.http.Header
 import retrofit2.http.Query
 
 @JsonClass(generateAdapter = true)
@@ -20,9 +19,9 @@ data class DirectoryListEnvelope(
 )
 
 interface UserDirectoryApi {
+    /** Token 由 OkHttp 拦截器统一附加 `X-Auth-Token`，避免 @Header 空串导致未授权 */
     @GET("im/directory/users")
     suspend fun listUsers(
-        @Header("X-Auth-Token") token: String,
         @Query("limit") limit: Int = 2000
     ): DirectoryListEnvelope
 }

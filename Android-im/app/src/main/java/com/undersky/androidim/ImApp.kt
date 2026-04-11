@@ -5,10 +5,12 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.undersky.androidim.data.AuthApi
 import com.undersky.androidim.data.AuthRepository
+import com.undersky.androidim.data.AuthTokenHolder
 import com.undersky.androidim.data.ContactStore
 import com.undersky.androidim.data.ImSocketManager
 import com.undersky.androidim.data.SessionStore
 import com.undersky.androidim.data.UserDirectoryApi
+import com.undersky.androidim.data.UserDirectoryCacheStore
 import com.undersky.androidim.data.UserDirectoryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,8 @@ class ImApp : Application() {
         private set
     lateinit var contactStore: ContactStore
         private set
+    lateinit var userDirectoryCacheStore: UserDirectoryCacheStore
+        private set
     lateinit var authRepository: AuthRepository
         private set
     lateinit var userDirectoryRepository: UserDirectoryRepository
@@ -38,6 +42,7 @@ class ImApp : Application() {
         super.onCreate()
         sessionStore = SessionStore(this)
         contactStore = ContactStore(this)
+        userDirectoryCacheStore = UserDirectoryCacheStore(this)
 
         val moshi = Moshi.Builder()
             .add(KotlinJsonAdapterFactory())
@@ -51,6 +56,15 @@ class ImApp : Application() {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val token = AuthTokenHolder.get()
+                val req = if (token != null) {
+                    chain.request().newBuilder().header("X-Auth-Token", token).build()
+                } else {
+                    chain.request()
+                }
+                chain.proceed(req)
+            }
             .addInterceptor(logging)
             .build()
 

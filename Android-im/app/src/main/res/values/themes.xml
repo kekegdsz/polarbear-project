@@ -5,4 +5,10 @@
         <item name="android:navigationBarColor">@color/wx_bg</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <style name="Theme.AndroidIm.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/wx_nav</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_simple</item>
+        <item name="postSplashScreenTheme">@style/Theme.AndroidIm</item>
+    </style>
 </resources>
