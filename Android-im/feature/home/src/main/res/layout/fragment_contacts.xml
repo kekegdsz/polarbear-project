@@ -13,14 +13,28 @@
         app:title="通讯录"
         app:titleTextAppearance="@style/TextAppearance.Wx.ToolbarTitle">
 
-        <ImageButton
-            android:id="@+id/button_refresh"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:layout_gravity="end"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="刷新"
-            android:src="@drawable/ic_refresh_24" />
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/button_create_group"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="发起群聊"
+                android:src="@drawable/ic_group_add_24" />
+
+            <ImageButton
+                android:id="@+id/button_refresh"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="刷新"
+                android:src="@drawable/ic_refresh_24" />
+        </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 
     <View

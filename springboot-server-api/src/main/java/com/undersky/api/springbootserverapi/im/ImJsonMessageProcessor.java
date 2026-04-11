@@ -8,7 +8,9 @@ import com.undersky.api.springbootserverapi.im.session.ImSessionEndpoint;
 import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,6 +52,9 @@ public class ImJsonMessageProcessor {
                 case "CONVERSATIONS" -> handleConversations(ep, msg);
                 case "USER_INFO" -> handleUserInfo(ep, msg);
                 case "GROUP_INFO" -> handleGroupInfo(ep, msg);
+                case "GROUP_RENAME" -> handleGroupRename(ep, msg);
+                case "GROUP_SET_ADMIN" -> handleGroupSetAdmin(ep, msg);
+                case "GROUP_REMOVE_ADMIN" -> handleGroupRemoveAdmin(ep, msg);
                 default -> err(ep, "未知指令: " + type);
             }
         } catch (IllegalArgumentException ex) {
@@ -112,8 +117,31 @@ public class ImJsonMessageProcessor {
     private void handleGroupCreate(ImSessionEndpoint ep, Map<String, Object> msg) {
         requireAuth(ep);
         String name = msg.get("name") == null ? null : String.valueOf(msg.get("name"));
-        Map<String, Object> res = chatService.createGroup(uid(ep), name);
+        List<Long> memberIds = readLongList(msg, "memberIds");
+        Map<String, Object> res = chatService.createGroup(uid(ep), name, memberIds);
         chatService.sendJson(ep, res);
+    }
+
+    private List<Long> readLongList(Map<String, Object> msg, String key) {
+        Object o = msg.get(key);
+        if (o == null) {
+            return List.of();
+        }
+        if (!(o instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Long> out = new ArrayList<>();
+        for (Object x : list) {
+            if (x == null) {
+                continue;
+            }
+            if (x instanceof Number n) {
+                out.add(n.longValue());
+            } else {
+                out.add(Long.parseLong(String.valueOf(x)));
+            }
+        }
+        return out;
     }
 
     private void handleGroupJoin(ImSessionEndpoint ep, Map<String, Object> msg) {
@@ -162,7 +190,31 @@ public class ImJsonMessageProcessor {
     private void handleGroupInfo(ImSessionEndpoint ep, Map<String, Object> msg) {
         requireAuth(ep);
         long gid = longVal(msg.get("groupId"));
-        chatService.sendJson(ep, chatService.groupInfo(gid));
+        chatService.sendJson(ep, chatService.groupInfo(gid, uid(ep)));
+    }
+
+    private void handleGroupRename(ImSessionEndpoint ep, Map<String, Object> msg) {
+        requireAuth(ep);
+        long gid = longVal(msg.get("groupId"));
+        String newName = msg.get("name") == null ? "" : String.valueOf(msg.get("name"));
+        Map<String, Object> res = chatService.renameGroup(uid(ep), gid, newName);
+        chatService.sendJson(ep, res);
+    }
+
+    private void handleGroupSetAdmin(ImSessionEndpoint ep, Map<String, Object> msg) {
+        requireAuth(ep);
+        long gid = longVal(msg.get("groupId"));
+        long target = longVal(msg.get("targetUserId"));
+        Map<String, Object> res = chatService.setGroupAdmin(uid(ep), gid, target);
+        chatService.sendJson(ep, res);
+    }
+
+    private void handleGroupRemoveAdmin(ImSessionEndpoint ep, Map<String, Object> msg) {
+        requireAuth(ep);
+        long gid = longVal(msg.get("groupId"));
+        long target = longVal(msg.get("targetUserId"));
+        Map<String, Object> res = chatService.removeGroupAdmin(uid(ep), gid, target);
+        chatService.sendJson(ep, res);
     }
 
     private void err(ImSessionEndpoint ep, String message) {

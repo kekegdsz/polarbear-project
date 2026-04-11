@@ -1,9 +1,12 @@
 package com.undersky.androidim.feature.home
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.PopupWindow
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -25,6 +28,7 @@ class MessagesFragment : Fragment() {
     private val binding get() = _binding!!
 
     private var directoryCollectJob: Job? = null
+    private var composePopup: PopupWindow? = null
 
     private val tabsViewModel: MainTabsViewModel by activityViewModels {
         ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application)
@@ -64,7 +68,10 @@ class MessagesFragment : Fragment() {
                 adapter = ConversationAdapter(session) { item ->
                     when (item.convType) {
                         "P2P" -> item.peerUserId?.let { navigator?.openChatP2P(it, "用户 $it") }
-                        "GROUP" -> item.groupId?.let { navigator?.openChatGroup(it) }
+                        "GROUP" -> item.groupId?.let { gid ->
+                            val title = item.groupName?.takeIf { n -> n.isNotBlank() } ?: "群聊 $gid"
+                            navigator?.openChatGroup(gid, title)
+                        }
                     }
                 }
                 binding.recycler.adapter = adapter
@@ -83,13 +90,50 @@ class MessagesFragment : Fragment() {
             adapter?.submitList(list)
         }
 
-        binding.buttonRefresh.setOnClickListener {
-            tabsViewModel.refreshConversations()
+        binding.buttonCompose.setOnClickListener { anchor ->
+            val popupView = layoutInflater.inflate(R.layout.popup_messages_compose, binding.root, false)
+            val popupWindow = PopupWindow(
+                popupView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true
+            ).apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                elevation = 8f
+                isOutsideTouchable = true
+                isFocusable = true
+            }
+            composePopup = popupWindow
+            popupWindow.setOnDismissListener { composePopup = null }
+
+            popupView.findViewById<View>(R.id.action_create_group).setOnClickListener {
+                popupWindow.dismiss()
+                val session = sessionViewModel.session.value ?: return@setOnClickListener
+                val app = requireActivity().application as BootstrapApplication
+                lifecycleScope.launch {
+                    val users = loadDirectoryUsersForPicker(app, session)
+                    showCreateGroupMemberPicker(session, users)
+                }
+            }
+            popupView.findViewById<View>(R.id.action_refresh_conversations).setOnClickListener {
+                popupWindow.dismiss()
+                tabsViewModel.refreshConversations()
+            }
+            anchor.post {
+                popupView.measure(
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                val popupW = popupView.measuredWidth
+                popupWindow.showAsDropDown(anchor, anchor.width - popupW, 8)
+            }
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        composePopup?.dismiss()
+        composePopup = null
         directoryCollectJob?.cancel()
         directoryCollectJob = null
         adapter = null

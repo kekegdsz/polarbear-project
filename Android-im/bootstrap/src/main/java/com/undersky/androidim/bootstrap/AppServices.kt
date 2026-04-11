@@ -17,6 +17,7 @@ import com.undersky.business.user.UserDirectoryCacheStore
 import com.undersky.business.user.UserDirectoryRepository
 import com.undersky.im.core.ImCore
 import com.undersky.im.core.api.ImClient
+import com.undersky.im.core.local.ConversationLocalStore
 import com.undersky.im.core.local.UnreadCountStore
 import com.undersky.im.core.local.UserProfileLocalStore
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,7 @@ class AppServices private constructor(
     val applicationScope: CoroutineScope,
     val sessionStore: SessionStore,
     val unreadCountStore: UnreadCountStore,
+    val conversationLocalStore: ConversationLocalStore,
     val contactStore: ContactStore,
     val userDirectoryCacheStore: UserDirectoryCacheStore,
     val userProfileLocalStore: UserProfileLocalStore,
@@ -73,6 +75,7 @@ class AppServices private constructor(
 
             val sessionStore = SessionStore(application)
             val unreadCountStore = UnreadCountStore(application)
+            val conversationLocalStore = ConversationLocalStore(application)
             val contactStore = ContactStore(application)
             val userDirectoryCacheStore = UserDirectoryCacheStore(application)
             val userProfileLocalStore = UserProfileLocalStore(application)
@@ -127,6 +130,7 @@ class AppServices private constructor(
                 applicationScope = applicationScope,
                 sessionStore = sessionStore,
                 unreadCountStore = unreadCountStore,
+                conversationLocalStore = conversationLocalStore,
                 contactStore = contactStore,
                 userDirectoryCacheStore = userDirectoryCacheStore,
                 userProfileLocalStore = userProfileLocalStore,

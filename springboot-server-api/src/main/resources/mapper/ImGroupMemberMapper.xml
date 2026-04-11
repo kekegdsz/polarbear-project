@@ -3,8 +3,16 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.undersky.api.springbootserverapi.im.mapper.ImGroupMemberMapper">
 
+    <resultMap id="MemberRow" type="com.undersky.api.springbootserverapi.im.model.ImGroupMember">
+        <result column="group_id" property="groupId"/>
+        <result column="user_id" property="userId"/>
+        <result column="role" property="role"/>
+        <result column="joined_at" property="joinedAt"/>
+    </resultMap>
+
     <insert id="insert">
-        INSERT INTO im_group_members (group_id, user_id) VALUES (#{groupId}, #{userId})
+        INSERT INTO im_group_members (group_id, user_id, role)
+        VALUES (#{groupId}, #{userId}, #{role})
     </insert>
 
     <delete id="deleteMember">
@@ -13,5 +21,21 @@
 
     <select id="countMember" resultType="int">
         SELECT COUNT(1) FROM im_group_members WHERE group_id = #{groupId} AND user_id = #{userId}
+    </select>
+
+    <select id="selectRole" resultType="string">
+        SELECT role FROM im_group_members WHERE group_id = #{groupId} AND user_id = #{userId}
+    </select>
+
+    <update id="updateRole">
+        UPDATE im_group_members SET role = #{role}
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </update>
+
+    <select id="listByGroupId" resultMap="MemberRow">
+        SELECT group_id, user_id, role, joined_at
+        FROM im_group_members
+        WHERE group_id = #{groupId}
+        ORDER BY joined_at
     </select>
 </mapper>

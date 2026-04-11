@@ -4,8 +4,14 @@ import java.time.LocalDateTime;
 
 public class ImGroupMember {
 
+    public static final String ROLE_OWNER = "OWNER";
+    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_MEMBER = "MEMBER";
+
     private Long groupId;
     private Long userId;
+    /** {@link #ROLE_OWNER} / {@link #ROLE_ADMIN} / {@link #ROLE_MEMBER} */
+    private String role;
     private LocalDateTime joinedAt;
 
     public Long getGroupId() {
@@ -22,6 +28,14 @@ public class ImGroupMember {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public LocalDateTime getJoinedAt() {

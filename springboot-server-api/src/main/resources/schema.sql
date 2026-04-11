@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS im_groups (
 CREATE TABLE IF NOT EXISTS im_group_members (
     group_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
+    role VARCHAR(16) NOT NULL DEFAULT 'MEMBER',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (group_id, user_id)
 );

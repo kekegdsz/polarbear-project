@@ -44,6 +44,10 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
     @Volatile
     private var openGroupId: Long? = null
 
+    /** 本次登录周期内是否已收到过服务端 CONVERSATIONS（避免慢磁盘读覆盖新列表） */
+    @Volatile
+    private var conversationsHydratedFromServer: Boolean = false
+
     private var eventsJob: Job? = null
     private var sessionJob: Job? = null
 
@@ -59,7 +63,16 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                         unreadStore.clearAll()
                         openP2PPeer = null
                         openGroupId = null
+                        conversationsHydratedFromServer = false
                         publishMerged(emptyList())
+                    } else {
+                        conversationsHydratedFromServer = false
+                        viewModelScope.launch(Dispatchers.IO) {
+                            val cached = services.conversationLocalStore.load(uid)
+                            if (!conversationsHydratedFromServer) {
+                                publishMerged(cached)
+                            }
+                        }
                     }
                 }
         }
@@ -97,7 +110,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                         _userPresence.postValue(emptyMap())
                         services.imClient.requestConversations()
                     }
-                    is ImEvent.Conversations -> publishMerged(ev.items)
+                    is ImEvent.Conversations -> persistAndPublishConversations(ev.items)
                     is ImEvent.PrivateMessage -> {
                         maybeIncrementPrivate(ev.message)
                         maybeNotifyIncomingPrivate(ev.message)
@@ -116,6 +129,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                             services.userDirectoryCacheStore.patchUserOnline(me, ev.userId, ev.online)
                         }
                     }
+                    is ImEvent.GroupCreated -> services.imClient.requestConversations()
                     else -> Unit
                 }
             }
@@ -167,6 +181,17 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
         val ctx = getApplication<Application>().applicationContext
         val title = ctx.getString(R.string.notification_title_group, gid)
         ImMessageNotifier.showIncomingMessage(ctx, title, m.body, -1L, gid)
+    }
+
+    private fun persistAndPublishConversations(serverList: List<ConversationItem>) {
+        conversationsHydratedFromServer = true
+        val uid = selfUserId
+        if (uid != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                services.conversationLocalStore.replaceFromServer(uid, serverList)
+            }
+        }
+        publishMerged(serverList)
     }
 
     private fun publishMerged(serverList: List<ConversationItem>) {

@@ -80,6 +80,11 @@ class ContactsFragment : Fragment() {
         binding.buttonRefresh.setOnClickListener {
             sessionViewModel.session.value?.let { contactsViewModel.refresh(it) }
         }
+
+        binding.buttonCreateGroup.setOnClickListener {
+            val session = sessionViewModel.session.value ?: return@setOnClickListener
+            showCreateGroupMemberPicker(session, contactsViewModel.users.value.orEmpty())
+        }
     }
 
     override fun onResume() {

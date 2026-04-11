@@ -19,4 +19,13 @@ sealed class ImEvent {
 
     /** 用户上下线（服务端广播） */
     data class Presence(val userId: Long, val online: Boolean) : ImEvent()
+
+    data class GroupCreated(val groupId: Long, val name: String) : ImEvent()
+
+    data class GroupInfoResult(
+        val groupId: Long,
+        val name: String,
+        val ownerUserId: Long,
+        val members: List<GroupMemberRow>
+    ) : ImEvent()
 }

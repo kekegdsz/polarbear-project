@@ -39,4 +39,21 @@ interface ImClient {
     fun sendPrivate(toUserId: Long, body: String)
 
     fun sendGroup(groupId: Long, body: String)
+
+    /** [memberUserIds] 不含当前用户；服务端会将当前用户作为群主并入群。 */
+    fun createGroup(name: String?, memberUserIds: List<Long>)
+
+    /**
+     * 发送建群并等待 [ImEvent.GroupCreated]（或服务端 [ImEvent.Error] 对应的异常），不依赖 [events] 的订阅时序。
+     * 超时默认 15s，抛出 [kotlinx.coroutines.TimeoutCancellationException]。
+     */
+    suspend fun createGroupAndAwait(name: String?, memberUserIds: List<Long>): ImEvent.GroupCreated
+
+    fun requestGroupInfo(groupId: Long)
+
+    fun renameGroup(groupId: Long, name: String)
+
+    fun setGroupAdmin(groupId: Long, targetUserId: Long)
+
+    fun removeGroupAdmin(groupId: Long, targetUserId: Long)
 }

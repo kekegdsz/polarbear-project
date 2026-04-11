@@ -18,7 +18,7 @@ class ConversationAdapter(
 ) : ListAdapter<ConversationItem, ConversationAdapter.Vh>(Diff) {
 
     private var directoryById: Map<Long, DirectoryUserDto> = emptyMap()
-    /** 与 MainTabsViewModel.userPresence 同步，优先于通讯录里的 online */
+    /** 与 MainTabsViewModel.userPresence 同步（仅实时 IM；缺省视为离线，不用通讯录缓存 online） */
     private var imPresence: Map<Long, Boolean> = emptyMap()
 
     fun updateSession(s: UserSession) {
@@ -66,7 +66,8 @@ class ConversationAdapter(
                             ?: "用户 $peer"
                     }
                 }
-                "GROUP" -> "群聊 ${item.groupId ?: ""}"
+                "GROUP" -> item.groupName?.takeIf { it.isNotBlank() }
+                    ?: "群聊 ${item.groupId ?: ""}"
                 else -> "会话"
             }
             binding.avatarLetter.text = title.take(1)
@@ -77,7 +78,8 @@ class ConversationAdapter(
                 (item.peerUserId ?: 0L) != session.userId
             if (p2pPeer) {
                 val peerId = item.peerUserId!!
-                val online = imPresence[peerId] ?: directoryById[peerId]?.online
+                // 仅用 IM 推送的 userPresence；不要用通讯录里可能过期的 online（重连清空 map 后快照只含在线用户）
+                val online = imPresence[peerId]
                 binding.textPresence.bindPresenceLabel(online, show = true)
             } else {
                 binding.textPresence.bindPresenceLabel(null, show = false)

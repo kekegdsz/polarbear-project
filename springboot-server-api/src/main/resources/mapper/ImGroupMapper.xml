@@ -22,4 +22,8 @@
     <select id="listMemberUserIds" resultType="long">
         SELECT user_id FROM im_group_members WHERE group_id = #{groupId} ORDER BY joined_at
     </select>
+
+    <update id="updateName">
+        UPDATE im_groups SET name = #{name} WHERE id = #{groupId}
+    </update>
 </mapper>

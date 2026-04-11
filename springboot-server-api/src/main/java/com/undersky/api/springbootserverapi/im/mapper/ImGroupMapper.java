@@ -14,4 +14,6 @@ public interface ImGroupMapper {
     ImGroup findById(@Param("id") Long id);
 
     List<Long> listMemberUserIds(@Param("groupId") Long groupId);
+
+    int updateName(@Param("groupId") Long groupId, @Param("name") String name);
 }

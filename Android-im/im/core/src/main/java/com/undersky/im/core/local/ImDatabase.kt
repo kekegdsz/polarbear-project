@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ChatMessageEntity::class, UserProfileEntity::class],
-    version = 2,
+    entities = [ChatMessageEntity::class, UserProfileEntity::class, ConversationListEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class ImDatabase : RoomDatabase() {
@@ -17,6 +17,8 @@ abstract class ImDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
 
     abstract fun userProfileDao(): UserProfileDao
+
+    abstract fun conversationListDao(): ConversationListDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -32,6 +34,32 @@ abstract class ImDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS conversation_list (" +
+                        "ownerUserId INTEGER NOT NULL, " +
+                        "convKey TEXT NOT NULL, " +
+                        "convType TEXT NOT NULL, " +
+                        "peerUserId INTEGER, " +
+                        "groupId INTEGER, " +
+                        "groupName TEXT, " +
+                        "lastMsgId INTEGER NOT NULL, " +
+                        "lastMsgType TEXT NOT NULL, " +
+                        "lastFromUserId INTEGER NOT NULL, " +
+                        "lastToUserId INTEGER, " +
+                        "lastGroupId INTEGER, " +
+                        "lastBody TEXT NOT NULL, " +
+                        "lastCreatedAt TEXT, " +
+                        "PRIMARY KEY(ownerUserId, convKey))"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_conversation_list_owner_last " +
+                        "ON conversation_list(ownerUserId, lastMsgId)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ImDatabase? = null
 
@@ -42,7 +70,7 @@ abstract class ImDatabase : RoomDatabase() {
                     ImDatabase::class.java,
                     "undersky_im.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

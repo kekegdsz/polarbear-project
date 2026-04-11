@@ -41,7 +41,7 @@ class ContactAdapter(
             val letter = name.trim().take(1).ifEmpty { "?" }
             binding.avatarLetter.text = letter
             binding.textSub.text = u.mobile?.takeIf { it.isNotBlank() } ?: "ID: ${u.id}"
-            val online = imPresence[u.id] ?: u.online
+            val online = imPresence[u.id]
             binding.textPresence.bindPresenceLabel(online, show = true)
             binding.root.setOnClickListener { onOpenChat(u) }
         }

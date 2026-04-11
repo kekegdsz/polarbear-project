@@ -15,5 +15,9 @@ data class ConversationItem(
     val peerUserId: Long?,
     val groupId: Long?,
     val lastMessage: ChatMessage,
-    val unreadCount: Int = 0
+    val unreadCount: Int = 0,
+    val groupName: String? = null
 )
+
+/** 群成员角色：OWNER / ADMIN / MEMBER */
+data class GroupMemberRow(val userId: Long, val role: String)

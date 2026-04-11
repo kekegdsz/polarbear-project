@@ -14,6 +14,8 @@ public interface UserMapper {
 
     User selectById(Long id);
 
+    List<User> selectByIds(@Param("ids") List<Long> ids);
+
     User selectByUsername(@Param("username") String username);
 
     User selectByMobile(@Param("mobile") String mobile);

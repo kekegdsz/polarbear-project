@@ -10,6 +10,7 @@ import com.undersky.business.user.UserSession
 import com.undersky.im.core.CHAT_PAGE_SIZE
 import com.undersky.im.core.CHAT_SYNC_NEWER_LIMIT
 import com.undersky.im.core.api.ChatMessage
+import com.undersky.im.core.api.GroupMemberRow
 import com.undersky.im.core.api.ImEvent
 import com.undersky.im.core.local.ChatConvKeys
 import com.undersky.im.core.local.ChatMessageLocalStore
@@ -19,6 +20,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+data class GroupDetailUi(
+    val groupId: Long,
+    val name: String,
+    val ownerUserId: Long,
+    val members: List<GroupMemberRow>,
+    val myRole: String
+)
 
 private sealed class PendingHistory {
     object None : PendingHistory()
@@ -46,6 +55,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _userOnline = MutableLiveData<Map<Long, Boolean>>(emptyMap())
     val userOnline: LiveData<Map<Long, Boolean>> = _userOnline
+
+    private val _groupDetail = MutableLiveData<GroupDetailUi?>(null)
+    val groupDetail: LiveData<GroupDetailUi?> = _groupDetail
 
     private var eventsJob: Job? = null
     private var session: UserSession? = null
@@ -86,6 +98,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         _title.value = titleFallbackArg
         _userOnline.value = emptyMap()
+        _groupDetail.postValue(null)
         postMessages(emptyList(), ChatScroll.ToBottom)
 
         val selfLabel = session.nickname?.takeIf { it.isNotBlank() }
@@ -114,6 +127,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     synchronized(prefetchedUserIds) { prefetchedUserIds.add(peerUserIdArg) }
                 }
+            }
+            if (!isP2P && groupIdArg > 0) {
+                services.imClient.requestGroupInfo(groupIdArg)
             }
         }
 
@@ -153,6 +169,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     is ImEvent.Presence -> mergeOnline(ev.userId, ev.online)
+                    is ImEvent.GroupInfoResult -> {
+                        if (!isP2P && ev.groupId == groupIdArg) {
+                            applyGroupInfo(ev, session.userId)
+                        }
+                    }
                     else -> Unit
                 }
             }
@@ -394,6 +415,63 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             services.imClient.sendPrivate(peerUserId, t)
         } else if (groupId != -1L) {
             services.imClient.sendGroup(groupId, t)
+        }
+    }
+
+    fun requestGroupInfoRefresh() {
+        if (groupId > 0) {
+            services.imClient.requestGroupInfo(groupId)
+        }
+    }
+
+    fun renameGroupTo(newName: String) {
+        if (groupId <= 0) return
+        val t = newName.trim()
+        if (t.isEmpty()) return
+        services.imClient.renameGroup(groupId, t)
+    }
+
+    fun setGroupAdminFor(targetUserId: Long) {
+        if (groupId <= 0) return
+        services.imClient.setGroupAdmin(groupId, targetUserId)
+    }
+
+    fun removeGroupAdminFor(targetUserId: Long) {
+        if (groupId <= 0) return
+        services.imClient.removeGroupAdmin(groupId, targetUserId)
+    }
+
+    private fun applyGroupInfo(ev: ImEvent.GroupInfoResult, selfId: Long) {
+        _title.postValue(ev.name)
+        val myR = ev.members.find { it.userId == selfId }?.role ?: "MEMBER"
+        _groupDetail.postValue(
+            GroupDetailUi(ev.groupId, ev.name, ev.ownerUserId, ev.members, myR)
+        )
+        prefetchMemberProfiles(ev.members, selfId)
+    }
+
+    private fun prefetchMemberProfiles(members: List<GroupMemberRow>, selfId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            for (uid in members.map { it.userId }.distinct()) {
+                if (uid == selfId) continue
+                val row = profileStore.getProfile(uid)
+                if (row != null && !row.isStale()) {
+                    withContext(Dispatchers.Main) {
+                        mergeDisplayName(uid, row.nickname, row.username)
+                    }
+                    continue
+                }
+                val shouldRequest = synchronized(prefetchedUserIds) {
+                    if (uid in prefetchedUserIds) false
+                    else {
+                        prefetchedUserIds.add(uid)
+                        true
+                    }
+                }
+                if (shouldRequest) {
+                    services.imClient.requestUserInfo(uid)
+                }
+            }
         }
     }
 

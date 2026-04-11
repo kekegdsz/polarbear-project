@@ -102,8 +102,8 @@ class MainFragment : Fragment(), MainChatNavigator {
         (requireActivity() as ImHostActivity).navigateMainToChat(peerUserId, -1L, titleFallback)
     }
 
-    override fun openChatGroup(groupId: Long) {
-        (requireActivity() as ImHostActivity).navigateMainToChat(-1L, groupId, "群聊 $groupId")
+    override fun openChatGroup(groupId: Long, titleFallback: String) {
+        (requireActivity() as ImHostActivity).navigateMainToChat(-1L, groupId, titleFallback)
     }
 
     override fun onDestroyView() {

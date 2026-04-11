@@ -2,11 +2,15 @@ package com.undersky.im.core.internal
 
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ConversationItem
+import com.undersky.im.core.api.GroupMemberRow
 import com.undersky.im.core.api.ImClient
 import com.undersky.im.core.api.ImEvent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +18,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -43,6 +48,9 @@ internal class DefaultImClient(
 
     private var reconnectJob: Job? = null
 
+    /** 与 [createGroupAndAwait] 配对，避免仅靠 SharedFlow 订阅导致漏收 GROUP_CREATED。 */
+    private var groupCreateAwait: CompletableDeferred<ImEvent.GroupCreated>? = null
+
     override fun connect(userId: Long) {
         authUserId = userId
         reconnectJob?.cancel()
@@ -62,6 +70,9 @@ internal class DefaultImClient(
             authUserId = null
         }
         synchronized(this) {
+            val pending = groupCreateAwait
+            groupCreateAwait = null
+            pending?.cancel(CancellationException("disconnected"))
             webSocket?.close(1000, "logout")
             webSocket = null
         }
@@ -114,6 +125,70 @@ internal class DefaultImClient(
         o.put("type", "GROUP_SEND")
         o.put("groupId", groupId)
         o.put("body", body)
+        sendRaw(o.toString())
+    }
+
+    override fun createGroup(name: String?, memberUserIds: List<Long>) {
+        val o = JSONObject()
+        o.put("type", "GROUP_CREATE")
+        if (name != null) o.put("name", name)
+        val arr = JSONArray()
+        memberUserIds.forEach { arr.put(it) }
+        o.put("memberIds", arr)
+        sendRaw(o.toString())
+    }
+
+    override suspend fun createGroupAndAwait(name: String?, memberUserIds: List<Long>): ImEvent.GroupCreated {
+        val deferred = CompletableDeferred<ImEvent.GroupCreated>()
+        synchronized(this) {
+            check(groupCreateAwait == null) { "已有建群请求进行中" }
+            groupCreateAwait = deferred
+        }
+        try {
+            createGroup(name, memberUserIds)
+            return withTimeout(15_000L) { deferred.await() }
+        } catch (e: TimeoutCancellationException) {
+            synchronized(this) {
+                if (groupCreateAwait === deferred) groupCreateAwait = null
+            }
+            throw e
+        } catch (e: CancellationException) {
+            synchronized(this) {
+                if (groupCreateAwait === deferred) groupCreateAwait = null
+            }
+            throw e
+        } finally {
+            synchronized(this) {
+                if (groupCreateAwait === deferred) groupCreateAwait = null
+            }
+        }
+    }
+
+    override fun requestGroupInfo(groupId: Long) {
+        sendRaw("""{"type":"GROUP_INFO","groupId":$groupId}""")
+    }
+
+    override fun renameGroup(groupId: Long, name: String) {
+        val o = JSONObject()
+        o.put("type", "GROUP_RENAME")
+        o.put("groupId", groupId)
+        o.put("name", name)
+        sendRaw(o.toString())
+    }
+
+    override fun setGroupAdmin(groupId: Long, targetUserId: Long) {
+        val o = JSONObject()
+        o.put("type", "GROUP_SET_ADMIN")
+        o.put("groupId", groupId)
+        o.put("targetUserId", targetUserId)
+        sendRaw(o.toString())
+    }
+
+    override fun removeGroupAdmin(groupId: Long, targetUserId: Long) {
+        val o = JSONObject()
+        o.put("type", "GROUP_REMOVE_ADMIN")
+        o.put("groupId", groupId)
+        o.put("targetUserId", targetUserId)
         sendRaw(o.toString())
     }
 
@@ -182,7 +257,17 @@ internal class DefaultImClient(
                     _events.emit(ImEvent.Presence(uid, obj.optBoolean("online", false)))
                 }
             }
-            "ERROR" -> _events.emit(ImEvent.Error(obj.optString("message", "错误")))
+            "ERROR" -> {
+                val msg = obj.optString("message", "错误")
+                synchronized(this@DefaultImClient) {
+                    val w = groupCreateAwait
+                    if (w != null) {
+                        groupCreateAwait = null
+                        w.completeExceptionally(IllegalStateException(msg))
+                    }
+                }
+                _events.emit(ImEvent.Error(msg))
+            }
             "CONVERSATIONS_RESULT" -> parseConversations(obj)
             "PRIVATE_MESSAGE" -> parsePrivate(obj)?.let { _events.emit(ImEvent.PrivateMessage(it)) }
             "GROUP_MESSAGE" -> parseGroup(obj)?.let { _events.emit(ImEvent.GroupMessage(it)) }
@@ -205,7 +290,42 @@ internal class DefaultImClient(
                     )
                 }
             }
+            "GROUP_CREATED" -> {
+                val gid = obj.optLong("groupId", -1L)
+                if (gid > 0) {
+                    val ev = ImEvent.GroupCreated(gid, obj.optString("name"))
+                    synchronized(this@DefaultImClient) {
+                        val w = groupCreateAwait
+                        if (w != null) {
+                            groupCreateAwait = null
+                            w.complete(ev)
+                        }
+                    }
+                    _events.emit(ev)
+                }
+            }
+            "GROUP_INFO_RESULT" -> parseGroupInfo(obj)?.let { _events.emit(it) }
         }
+    }
+
+    private fun parseGroupInfo(obj: JSONObject): ImEvent.GroupInfoResult? {
+        val gid = obj.optLong("groupId", -1L)
+        if (gid <= 0) return null
+        val arr = obj.optJSONArray("members") ?: JSONArray()
+        val members = buildList {
+            for (i in 0 until arr.length()) {
+                val row = arr.optJSONObject(i) ?: continue
+                val uid = row.optLong("userId", -1L)
+                if (uid <= 0) continue
+                add(GroupMemberRow(uid, row.optString("role", "MEMBER")))
+            }
+        }
+        return ImEvent.GroupInfoResult(
+            groupId = gid,
+            name = obj.optString("name"),
+            ownerUserId = obj.optLong("ownerUserId", -1L),
+            members = members
+        )
     }
 
     private suspend fun parseConversations(obj: JSONObject) {
@@ -219,7 +339,11 @@ internal class DefaultImClient(
                 val last = it.optJSONObject("lastMessage") ?: continue
                 val msg = parseMessageRow(last) ?: continue
                 val unread = if (it.has("unreadCount")) it.optInt("unreadCount", 0) else 0
-                add(ConversationItem(convType, peer, gid, msg, unreadCount = unread))
+                val gname = when {
+                    !it.has("groupName") || it.isNull("groupName") -> null
+                    else -> it.optString("groupName").takeIf { s -> s.isNotEmpty() }
+                }
+                add(ConversationItem(convType, peer, gid, msg, unreadCount = unread, groupName = gname))
             }
         }
         _events.emit(ImEvent.Conversations(list))
