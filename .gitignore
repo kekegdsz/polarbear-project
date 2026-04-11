@@ -14,3 +14,6 @@ vue-web-server/dist/
 # Env / secrets
 .env
 .env.*
+
+# Git bundle（本地生成用于离线同步，勿提交）
+*.bundle
