@@ -44,8 +44,10 @@ echo "使用 Java: $JAVA_CMD"
 pkill -f "${WAR_NAME}" 2>/dev/null || true
 sleep 2
 
-# 仅当显式传入时再导出，避免空字符串覆盖 yml 中的默认值
-if [[ -n "${MYSQL_PASSWORD:-}" ]]; then
+# 空字符串会覆盖 yml 中 ${MYSQL_PASSWORD:默认}，表现为「无密码」连库导致启动失败
+if [[ -z "${MYSQL_PASSWORD:-}" ]]; then
+  unset MYSQL_PASSWORD
+else
   export MYSQL_PASSWORD
 fi
 

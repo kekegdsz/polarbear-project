@@ -8,6 +8,8 @@ import com.undersky.androidim.data.AuthRepository
 import com.undersky.androidim.data.ContactStore
 import com.undersky.androidim.data.ImSocketManager
 import com.undersky.androidim.data.SessionStore
+import com.undersky.androidim.data.UserDirectoryApi
+import com.undersky.androidim.data.UserDirectoryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,6 +28,8 @@ class ImApp : Application() {
     lateinit var contactStore: ContactStore
         private set
     lateinit var authRepository: AuthRepository
+        private set
+    lateinit var userDirectoryRepository: UserDirectoryRepository
         private set
     lateinit var imSocket: ImSocketManager
         private set
@@ -57,6 +61,7 @@ class ImApp : Application() {
             .build()
 
         authRepository = AuthRepository(retrofit.create(AuthApi::class.java))
+        userDirectoryRepository = UserDirectoryRepository(retrofit.create(UserDirectoryApi::class.java))
 
         val wsClient = okHttp.newBuilder()
             .readTimeout(0, TimeUnit.MILLISECONDS)

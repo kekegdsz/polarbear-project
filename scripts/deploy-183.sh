@@ -55,12 +55,21 @@ ssh "$DEPLOY_HOST" "chmod +x '${DEPLOY_REMOTE_APP}/start-prod.sh'"
 echo "    后端已上传"
 
 echo ">>> [4/4] 远程重启 Java..."
-ssh "$DEPLOY_HOST" bash <<SSHEOF
+# 勿向远端 export 空的 MYSQL_PASSWORD，否则会盖住 application-prod.yml 里的默认占位符
+if [[ -n "${MYSQL_PASSWORD:-}" ]]; then
+  ssh "$DEPLOY_HOST" bash -s <<SSHEOF
+export MYSQL_PASSWORD=$(printf '%q' "$MYSQL_PASSWORD")
 export SPRING_PROFILE="${SPRING_PROFILE}"
-export MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 cd "${DEPLOY_REMOTE_APP}"
 ./start-prod.sh
 SSHEOF
+else
+  ssh "$DEPLOY_HOST" bash <<SSHEOF
+export SPRING_PROFILE="${SPRING_PROFILE}"
+cd "${DEPLOY_REMOTE_APP}"
+./start-prod.sh
+SSHEOF
+fi
 
 IP="${DEPLOY_HOST#*@}"
 echo ""

@@ -14,24 +14,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,11 +39,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.undersky.androidim.ImApp
-import com.undersky.androidim.data.ContactEntry
+import com.undersky.androidim.data.DirectoryUserDto
+import com.undersky.androidim.data.UserSession
 import com.undersky.androidim.ui.theme.WxGreen
 import com.undersky.androidim.ui.theme.WxLine
 import com.undersky.androidim.ui.theme.WxNav
-import kotlinx.coroutines.flow.collectLatest
+import com.undersky.androidim.ui.theme.WxSub
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,14 +52,35 @@ import kotlinx.coroutines.launch
 fun ContactsTab(
     modifier: Modifier = Modifier,
     app: ImApp,
+    session: UserSession,
     onChat: (Long) -> Unit
 ) {
-    var contacts by remember { mutableStateOf<List<ContactEntry>>(emptyList()) }
-    var showAdd by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    var users by remember { mutableStateOf<List<DirectoryUserDto>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableIntStateOf(0) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        app.contactStore.contactsFlow.collectLatest { contacts = it }
+    LaunchedEffect(session.userId, session.token, refreshKey) {
+        loading = true
+        error = null
+        try {
+            app.userDirectoryRepository.listAll(session.token.orEmpty())
+                .onSuccess { list ->
+                    users = list
+                        .filter { it.id != session.userId }
+                        .sortedWith(
+                            compareBy<DirectoryUserDto> { (it.username ?: "").isBlank() }
+                                .thenBy { it.username?.lowercase() ?: "" }
+                                .thenBy { it.id }
+                        )
+                }
+                .onFailure { e ->
+                    error = e.message ?: "加载失败"
+                    users = emptyList()
+                }
+        } finally {
+            loading = false
+        }
     }
 
     Scaffold(
@@ -67,17 +88,16 @@ fun ContactsTab(
         topBar = {
             TopAppBar(
                 title = { Text("通讯录", fontSize = 22.sp) },
+                actions = {
+                    IconButton(
+                        onClick = { refreshKey++ },
+                        enabled = !loading
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = WxNav)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAdd = true },
-                containerColor = WxGreen,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "添加")
-            }
         }
     ) { padding ->
         Column(
@@ -86,84 +106,76 @@ fun ContactsTab(
                 .padding(padding)
         ) {
             HorizontalDivider(color = WxLine, thickness = 0.5.dp)
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(contacts, key = { it.userId }) { c ->
-                    val label = c.remark?.takeIf { it.isNotBlank() } ?: "用户 ${c.userId}"
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onChat(c.userId) }
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(WxGreen.copy(alpha = 0.85f)),
-                            contentAlignment = Alignment.Center
-                        ) {
+            when {
+                loading && users.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = WxGreen)
+                    }
+                }
+                error != null && users.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(error!!, color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.size(12.dp))
                             Text(
-                                label.take(1),
-                                color = MaterialTheme.colorScheme.onPrimary
+                                "点击右上角刷新重试",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WxSub
                             )
                         }
-                        Spacer(Modifier.size(12.dp))
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
-                    HorizontalDivider(color = WxLine.copy(alpha = 0.5f), thickness = 0.5.dp)
+                }
+                else -> {
+                    LazyColumn(Modifier.fillMaxSize()) {
+                        items(users, key = { it.id }) { u ->
+                            val title = u.username?.takeIf { it.isNotBlank() } ?: "用户 ${u.id}"
+                            val sub = buildString {
+                                append("ID ${u.id}")
+                                u.mobile?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onChat(u.id) }
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(WxGreen.copy(alpha = 0.85f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        title.take(1),
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                                Spacer(Modifier.size(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.size(2.dp))
+                                    Text(
+                                        sub,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = WxSub,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = WxLine.copy(alpha = 0.5f), thickness = 0.5.dp)
+                        }
+                    }
                 }
             }
         }
-    }
-
-    if (showAdd) {
-        var uidText by remember { mutableStateOf("") }
-        var remarkText by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showAdd = false },
-            title = { Text("添加联系人") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = uidText,
-                        onValueChange = { uidText = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("对方用户 ID（数字）") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    OutlinedTextField(
-                        value = remarkText,
-                        onValueChange = { remarkText = it },
-                        label = { Text("备注（可选）") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val id = uidText.toLongOrNull()
-                        if (id != null && id > 0) {
-                            scope.launch {
-                                app.contactStore.add(ContactEntry(id, remarkText.ifBlank { null }))
-                                showAdd = false
-                            }
-                        }
-                    }
-                ) { Text("保存", color = WxGreen) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdd = false }) { Text("取消") }
-            }
-        )
     }
 }

@@ -113,6 +113,7 @@ fun MainTabsScreen(
             1 -> ContactsTab(
                 modifier = Modifier.padding(padding),
                 app = app,
+                session = session,
                 onChat = onOpenChatP2P
             )
             2 -> MeTab(

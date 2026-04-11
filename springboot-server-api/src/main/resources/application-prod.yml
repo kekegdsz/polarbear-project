@@ -5,7 +5,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: dg_server
     password: ${MYSQL_PASSWORD:3DcMYF2ar8A4Ee8P}
+  # 生产库已有表与数据，勿每次启动执行 schema.sql（否则会重复 INSERT 导致主键冲突）
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
+      mode: never
