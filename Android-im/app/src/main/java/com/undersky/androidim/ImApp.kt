@@ -9,9 +9,15 @@ import com.undersky.androidim.data.AuthTokenHolder
 import com.undersky.androidim.data.ContactStore
 import com.undersky.androidim.data.ImSocketManager
 import com.undersky.androidim.data.SessionStore
+import com.undersky.androidim.data.UnreadCountStore
 import com.undersky.androidim.data.UserDirectoryApi
 import com.undersky.androidim.data.UserDirectoryCacheStore
 import com.undersky.androidim.data.UserDirectoryRepository
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import com.undersky.androidim.notify.ImMessageNotifier
+import com.undersky.androidim.notify.PendingChatNavigation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,9 +44,16 @@ class ImApp : Application() {
     lateinit var imSocket: ImSocketManager
         private set
 
+    lateinit var unreadCountStore: UnreadCountStore
+        private set
+
+    @Volatile
+    var pendingChatNavigation: PendingChatNavigation? = null
+
     override fun onCreate() {
         super.onCreate()
         sessionStore = SessionStore(this)
+        unreadCountStore = UnreadCountStore(this)
         contactStore = ContactStore(this)
         userDirectoryCacheStore = UserDirectoryCacheStore(this)
 
@@ -87,5 +100,11 @@ class ImApp : Application() {
             scope = applicationScope,
             wsUrl = ImSocketManager.buildWsUrl(BuildConfig.API_BASE_URL, BuildConfig.IM_WS_PATH)
         )
+
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                ImMessageNotifier.cancelAllForApp(this@ImApp)
+            }
+        })
     }
 }

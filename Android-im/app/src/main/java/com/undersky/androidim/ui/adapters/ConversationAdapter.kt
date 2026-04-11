@@ -1,6 +1,7 @@
 package com.undersky.androidim.ui.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -41,6 +42,13 @@ class ConversationAdapter(
             binding.textTitle.text = title
             binding.textPreview.text = item.lastMessage.body
             binding.textTime.text = item.lastMessage.createdAt?.takeLast(8).orEmpty()
+            val u = item.unreadCount
+            if (u <= 0) {
+                binding.badgeUnread.visibility = View.GONE
+            } else {
+                binding.badgeUnread.visibility = View.VISIBLE
+                binding.badgeUnread.text = if (u > 99) "99+" else u.toString()
+            }
             binding.root.setOnClickListener { onOpen(item) }
         }
     }

@@ -7,13 +7,14 @@ import android.view.ViewGroup
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.navigation.NavigationBarView
+import com.undersky.androidim.MainActivity
 import com.undersky.androidim.R
 import com.undersky.androidim.databinding.FragmentMainBinding
+import com.undersky.androidim.ImApp
 import com.undersky.androidim.ui.applyNavigationBarBottomInset
 import com.undersky.androidim.ui.applyStatusBarTopInset
 import com.undersky.androidim.ui.session.SessionViewModel
@@ -23,7 +24,7 @@ class MainFragment : Fragment(), MainChatNavigator {
     private var _binding: FragmentMainBinding? = null
     private val binding get() = _binding!!
 
-    private val tabsViewModel: MainTabsViewModel by viewModels {
+    private val tabsViewModel: MainTabsViewModel by activityViewModels {
         ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application)
     }
 
@@ -38,6 +39,7 @@ class MainFragment : Fragment(), MainChatNavigator {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        (requireActivity() as MainActivity).requestPostNotificationsIfNeeded()
         binding.viewPager.applyStatusBarTopInset()
         binding.bottomNav.applyNavigationBarBottomInset()
         binding.viewPager.adapter = MainPagerAdapter(this)
@@ -68,11 +70,38 @@ class MainFragment : Fragment(), MainChatNavigator {
                 tabsViewModel.refreshConversations()
             }
         }
+
+        tryConsumePendingChatNavigation()
+
+        tabsViewModel.totalUnread.observe(viewLifecycleOwner) { count ->
+            val badge = binding.bottomNav.getOrCreateBadge(R.id.nav_messages)
+            if (count <= 0) {
+                badge.isVisible = false
+            } else {
+                badge.isVisible = true
+                badge.number = count.coerceAtMost(99)
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        tryConsumePendingChatNavigation()
         sessionViewModel.session.value?.let { tabsViewModel.refreshConversations() }
+    }
+
+    private fun tryConsumePendingChatNavigation() {
+        val app = requireActivity().application as ImApp
+        val pending = app.pendingChatNavigation ?: return
+        app.pendingChatNavigation = null
+        findNavController().navigate(
+            R.id.action_main_to_chat,
+            bundleOf(
+                "peerUserId" to pending.peerUserId,
+                "groupId" to pending.groupId,
+                "titleFallback" to pending.titleFallback
+            )
+        )
     }
 
     override fun openChatP2P(peerUserId: Long) {

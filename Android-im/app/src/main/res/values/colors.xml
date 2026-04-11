@@ -10,4 +10,5 @@
     <!-- 底部 Tab 未选中：接近微信的深灰图标 / 字 -->
     <color name="wx_tab_icon_inactive">#8E8E93</color>
     <color name="wx_tab_text_inactive">#8E8E93</color>
+    <color name="wx_unread">#FA5151</color>
 </resources>

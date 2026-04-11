@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">IM</string>
+    <string name="notification_channel_im_name">新消息</string>
+    <string name="notification_channel_im_description">收到私聊或群消息时提醒</string>
+    <string name="notification_title_p2p">用户 %1$d</string>
+    <string name="notification_title_group">群聊 %1$d</string>
 </resources>

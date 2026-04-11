@@ -14,5 +14,6 @@ data class ConversationItem(
     val convType: String,
     val peerUserId: Long?,
     val groupId: Long?,
-    val lastMessage: ChatMessage
+    val lastMessage: ChatMessage,
+    val unreadCount: Int = 0
 )

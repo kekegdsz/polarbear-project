@@ -217,7 +217,8 @@ class ImSocketManager(
                 val gid = if (it.has("groupId")) it.optLong("groupId") else null
                 val last = it.optJSONObject("lastMessage") ?: continue
                 val msg = parseMessageRow(last) ?: continue
-                add(ConversationItem(convType, peer, gid, msg))
+                val unread = if (it.has("unreadCount")) it.optInt("unreadCount", 0) else 0
+                add(ConversationItem(convType, peer, gid, msg, unreadCount = unread))
             }
         }
         _events.emit(Event.Conversations(list))
