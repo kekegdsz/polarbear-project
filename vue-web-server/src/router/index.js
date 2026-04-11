@@ -23,7 +23,13 @@ const routes = [
     path: '/icon-maker',
     name: 'IconMaker',
     component: () => import('../views/IconMakerView.vue'),
-    meta: { title: 'App Icon 制作工具' }
+    meta: { title: 'ICON 制作工具' }
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: () => import('../views/AboutView.vue'),
+    meta: { title: '关于我们' }
   },
   {
     path: '/admin/login',

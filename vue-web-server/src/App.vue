@@ -11,12 +11,13 @@
           <span class="brand-name">{{ appConfig.shortName }}</span>
         </router-link>
         <span v-if="isInAdminArea" class="hello-user">Hello，{{ profileUsername || '管理员' }}</span>
-        <nav v-else class="top-nav">
-          <router-link to="/api-doc" class="top-link">API 文档</router-link>
-          <router-link to="/json-tool" class="top-link">JSON 工具</router-link>
-          <router-link to="/icon-maker" class="top-link">App Icon 制作</router-link>
-        </nav>
       </div>
+      <nav v-if="!isInAdminArea" class="top-nav" aria-label="主导航">
+        <router-link to="/json-tool" class="top-link">JSON 工具</router-link>
+        <router-link to="/icon-maker" class="top-link">ICON 制作</router-link>
+        <router-link to="/api-doc" class="top-link">API 文档</router-link>
+        <router-link to="/about" class="top-link">关于我们</router-link>
+      </nav>
       <div class="top-right">
         <router-link
           v-if="!isInAdminArea"
@@ -210,6 +211,9 @@ const handleLogout = () => {
 }
 
 .top-left {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -234,7 +238,7 @@ const handleLogout = () => {
 
 .brand-name {
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #1d1d1f;
   letter-spacing: -0.02em;
 }
@@ -244,9 +248,15 @@ const handleLogout = () => {
 }
 
 .top-nav {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 1rem;
+  pointer-events: auto;
 }
 
 .top-link {
@@ -270,8 +280,13 @@ const handleLogout = () => {
 }
 
 .top-right {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem;
 }
 

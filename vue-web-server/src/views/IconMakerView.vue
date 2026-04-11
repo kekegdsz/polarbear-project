@@ -1,7 +1,7 @@
 <template>
   <div class="icon-maker-page">
     <section class="panel controls">
-      <h2>App Icon 制作工具</h2>
+      <h2>ICON 制作工具</h2>
       <p class="desc">上传一张源图，调整边缘裁剪和圆角后，一键导出 iOS / Android / OHOS 常用图标尺寸。</p>
 
       <div
