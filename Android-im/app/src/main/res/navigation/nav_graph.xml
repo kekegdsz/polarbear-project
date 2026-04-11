@@ -7,13 +7,13 @@
 
     <fragment
         android:id="@+id/splashFragment"
-        android:name="com.undersky.androidim.ui.splash.SplashFragment"
+        android:name="com.undersky.androidim.feature.splash.SplashFragment"
         android:label="Splash"
         tools:layout="@layout/fragment_splash" />
 
     <fragment
         android:id="@+id/loginFragment"
-        android:name="com.undersky.androidim.ui.auth.LoginFragment"
+        android:name="com.undersky.androidim.feature.auth.LoginFragment"
         android:label="登录"
         tools:layout="@layout/fragment_login">
         <action
@@ -28,7 +28,7 @@
 
     <fragment
         android:id="@+id/registerFragment"
-        android:name="com.undersky.androidim.ui.auth.RegisterFragment"
+        android:name="com.undersky.androidim.feature.auth.RegisterFragment"
         android:label="注册"
         tools:layout="@layout/fragment_register">
         <action
@@ -40,7 +40,7 @@
 
     <fragment
         android:id="@+id/mainFragment"
-        android:name="com.undersky.androidim.ui.main.MainFragment"
+        android:name="com.undersky.androidim.feature.home.MainFragment"
         android:label="首页"
         tools:layout="@layout/fragment_main">
         <action
@@ -50,7 +50,7 @@
 
     <fragment
         android:id="@+id/chatFragment"
-        android:name="com.undersky.androidim.ui.chat.ChatFragment"
+        android:name="com.undersky.androidim.feature.chat.ChatFragment"
         android:label="聊天"
         tools:layout="@layout/fragment_chat">
         <argument

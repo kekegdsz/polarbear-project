@@ -1,0 +1,4 @@
+<resources>
+    <string name="notification_channel_im_name">新消息</string>
+    <string name="notification_channel_im_description">收到私聊或群消息时提醒</string>
+</resources>

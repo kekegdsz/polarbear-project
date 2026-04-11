@@ -1,0 +1,4 @@
+<resources>
+    <string name="notification_title_p2p">用户 %1$d</string>
+    <string name="notification_title_group">群聊 %1$d</string>
+</resources>
