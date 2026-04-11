@@ -9,5 +9,5 @@ sealed class ImEvent {
     data class PrivateMessage(val message: ChatMessage) : ImEvent()
     data class GroupMessage(val message: ChatMessage) : ImEvent()
     data class HistoryResult(val messages: List<ChatMessage>) : ImEvent()
-    data class UserInfoResult(val userId: Long, val username: String?, val mobile: String?) : ImEvent()
+    data class UserInfoResult(val userId: Long, val username: String?, val nickname: String?, val mobile: String?) : ImEvent()
 }

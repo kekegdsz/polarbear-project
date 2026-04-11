@@ -46,7 +46,12 @@ class ContactsFragment : Fragment() {
         )
 
         val navigator = parentFragment as? MainChatNavigator
-        adapter = ContactAdapter { u -> navigator?.openChatP2P(u.id) }
+        adapter = ContactAdapter { u ->
+            val fb = u.nickname?.takeIf { it.isNotBlank() }
+                ?: u.username?.takeIf { it.isNotBlank() }
+                ?: "用户 ${u.id}"
+            navigator?.openChatP2P(u.id, fb)
+        }
         binding.recycler.adapter = adapter
 
         contactsViewModel.users.observe(viewLifecycleOwner) { users ->

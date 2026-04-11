@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,7 @@ public class AdminInitConfig {
     private static final String DEFAULT_ADMIN_PASSWORD = "Admin@123";
 
     @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     public CommandLineRunner initAdminUser(UserMapper userMapper, PasswordEncoder passwordEncoder) {
         return args -> {
             User existing = userMapper.selectByUsername(DEFAULT_ADMIN_USERNAME);
@@ -34,6 +37,7 @@ public class AdminInitConfig {
 
             User admin = new User();
             admin.setUsername(DEFAULT_ADMIN_USERNAME);
+            admin.setNickname(DEFAULT_ADMIN_USERNAME);
             admin.setPassword(passwordEncoder.encode(DEFAULT_ADMIN_PASSWORD));
             admin.setRole("admin");
             admin.setVip(User.VIP_NORMAL);

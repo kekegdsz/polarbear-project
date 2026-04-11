@@ -11,9 +11,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.undersky.androidim.bootstrap.session.SessionViewModel
 import com.undersky.androidim.feature.chat.adapters.ChatMessageAdapter
+import com.undersky.androidim.feature.chat.toChatListItems
 import com.undersky.androidim.feature.chat.databinding.FragmentChatBinding
 import com.undersky.androidim.feature.home.MainTabsViewModel
 import com.undersky.core.common.applyWindowInsetsPadding
+import com.undersky.im.core.api.ChatMessage
 
 class ChatFragment : Fragment() {
 
@@ -36,6 +38,8 @@ class ChatFragment : Fragment() {
     private var didBindChat = false
     private var peerUserId: Long = -1L
     private var groupId: Long = -1L
+    private var lastMessages: List<ChatMessage> = emptyList()
+    private var lastDisplayNames: Map<Long, String> = emptyMap()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentChatBinding.inflate(inflater, container, false)
@@ -75,12 +79,14 @@ class ChatFragment : Fragment() {
             binding.toolbar.title = t
         }
 
+        viewModel.displayNames.observe(viewLifecycleOwner) { map ->
+            lastDisplayNames = map
+            submitChatList()
+        }
+
         viewModel.messages.observe(viewLifecycleOwner) { list ->
-            adapter?.submitList(list) {
-                if (list.isNotEmpty()) {
-                    binding.recycler.scrollToPosition(list.lastIndex)
-                }
-            }
+            lastMessages = list
+            submitChatList()
         }
 
         binding.buttonSend.setOnClickListener {
@@ -109,5 +115,14 @@ class ChatFragment : Fragment() {
         super.onDestroyView()
         adapter = null
         _binding = null
+    }
+
+    private fun submitChatList() {
+        val items = lastMessages.toChatListItems(lastDisplayNames)
+        adapter?.submitList(items) {
+            if (items.isNotEmpty()) {
+                binding.recycler.scrollToPosition(items.lastIndex)
+            }
+        }
     }
 }

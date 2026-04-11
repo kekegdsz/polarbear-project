@@ -26,7 +26,9 @@ class ContactAdapter(
         private val onOpenChat: (DirectoryUserDto) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(u: DirectoryUserDto) {
-            val name = u.username?.takeIf { it.isNotBlank() } ?: "用户 ${u.id}"
+            val name = u.nickname?.takeIf { it.isNotBlank() }
+                ?: u.username?.takeIf { it.isNotBlank() }
+                ?: "用户 ${u.id}"
             binding.textTitle.text = name
             binding.textSub.text = u.mobile?.takeIf { it.isNotBlank() } ?: "ID: ${u.id}"
             binding.root.setOnClickListener { onOpenChat(u) }

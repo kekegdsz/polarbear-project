@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class LoginVO {
 
     private String userId;
+    private String nickname;
     private String mobile;
     @JsonProperty("is_vip")
     private boolean isVip;
@@ -25,6 +26,14 @@ public class LoginVO {
 
     public void setUserId(String userId) {
         this.userId = userId;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public String getMobile() {

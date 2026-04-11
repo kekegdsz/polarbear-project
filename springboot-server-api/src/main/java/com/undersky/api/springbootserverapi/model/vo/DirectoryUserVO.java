@@ -7,6 +7,7 @@ public class DirectoryUserVO {
 
     private Long id;
     private String username;
+    private String nickname;
     private String mobile;
 
     public Long getId() {
@@ -23,6 +24,14 @@ public class DirectoryUserVO {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public String getMobile() {

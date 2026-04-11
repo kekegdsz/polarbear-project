@@ -54,11 +54,12 @@ public class AuthService {
             User user = userMapper.selectByDeviceUuid(deviceUuid);
             if (user != null) {
                 refreshToken(user);
-                return toLoginVO(user);
+                return toLoginVO(userMapper.selectById(user.getId()));
             }
             user = createDeviceUser(deviceUuid, mobile);
             userMapper.insert(user);
-            return toLoginVO(user);
+            ensureNicknameAfterInsert(user);
+            return toLoginVO(userMapper.selectById(user.getId()));
         }
 
         // 方式二：账号密码注册（可绑定 deviceUuid）
@@ -72,6 +73,7 @@ public class AuthService {
         User user = new User();
         user.setDeviceUuid(deviceUuid);
         user.setUsername(username);
+        user.setNickname(username);
         user.setPassword(passwordEncoder.encode(password));
         user.setMobile(mobile);
         user.setToken(UUID.randomUUID().toString().replace("-", ""));
@@ -83,7 +85,7 @@ public class AuthService {
         user.setUpdatedAt(now);
 
         userMapper.insert(user);
-        return toLoginVO(user);
+        return toLoginVO(userMapper.selectById(user.getId()));
     }
 
     private User createDeviceUser(String deviceUuid, String mobile) {
@@ -121,7 +123,38 @@ public class AuthService {
         }
 
         refreshToken(user);
-        return toLoginVO(user);
+        return toLoginVO(userMapper.selectById(user.getId()));
+    }
+
+    @Transactional
+    public LoginVO updateProfile(String token, String nicknameRaw) {
+        User user = userMapper.selectByToken(token);
+        if (user == null) {
+            throw new BusinessException("登录已失效");
+        }
+        String nick = nicknameRaw != null ? nicknameRaw.trim() : "";
+        if (nick.isEmpty()) {
+            throw new BusinessException("昵称不能为空");
+        }
+        if (nick.length() > 32) {
+            throw new BusinessException("昵称最多32个字符");
+        }
+        user.setNickname(nick);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        return toLoginVO(userMapper.selectById(user.getId()));
+    }
+
+    private void ensureNicknameAfterInsert(User user) {
+        if (StringUtils.hasText(user.getNickname())) {
+            return;
+        }
+        String nick = StringUtils.hasText(user.getUsername())
+                ? user.getUsername()
+                : ("用户" + user.getId());
+        user.setNickname(nick);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
     }
 
     private String trimToNull(String s) {
@@ -131,6 +164,7 @@ public class AuthService {
     private LoginVO toLoginVO(User user) {
         LoginVO vo = new LoginVO();
         vo.setUserId(String.valueOf(user.getId()));
+        vo.setNickname(user.getNickname() != null ? user.getNickname() : "");
         vo.setMobile(user.getMobile() != null ? user.getMobile() : "");
         vo.setVipFlag(User.VIP_PAID.equals(user.getVip()));
         vo.setVip(user.getVip() != null ? user.getVip() : User.VIP_NORMAL);

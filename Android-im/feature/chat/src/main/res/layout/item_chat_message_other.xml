@@ -7,12 +7,40 @@
     android:paddingVertical="5dp">
 
     <TextView
-        android:id="@+id/text_body"
+        android:id="@+id/avatar_letter"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_avatar_circle"
+        android:gravity="center"
+        android:textColor="@android:color/white"
+        android:textSize="16sp" />
+
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_bubble_other"
-        android:maxWidth="280dp"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="10dp"
-        android:textAppearance="?attr/textAppearanceBodyLarge" />
+        android:layout_marginStart="8dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_nickname"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:maxWidth="280dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <TextView
+            android:id="@+id/text_body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_bubble_other"
+            android:maxWidth="280dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="10dp"
+            android:textAppearance="?attr/textAppearanceBodyLarge" />
+    </LinearLayout>
 </LinearLayout>

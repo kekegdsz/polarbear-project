@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.undersky.androidim.feature.home.databinding.ItemConversationBinding
+import com.undersky.business.user.DirectoryUserDto
 import com.undersky.business.user.UserSession
 import com.undersky.im.core.api.ConversationItem
 
@@ -15,8 +16,15 @@ class ConversationAdapter(
     private val onOpen: (ConversationItem) -> Unit
 ) : ListAdapter<ConversationItem, ConversationAdapter.Vh>(Diff) {
 
+    private var directoryById: Map<Long, DirectoryUserDto> = emptyMap()
+
     fun updateSession(s: UserSession) {
         session = s
+    }
+
+    fun updateDirectory(users: List<DirectoryUserDto>) {
+        directoryById = users.associateBy { it.id }
+        notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
@@ -25,15 +33,29 @@ class ConversationAdapter(
     }
 
     override fun onBindViewHolder(holder: Vh, position: Int) {
-        holder.bind(getItem(position), session, onOpen)
+        holder.bind(getItem(position), session, directoryById, onOpen)
     }
 
     class Vh(private val binding: ItemConversationBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: ConversationItem, session: UserSession, onOpen: (ConversationItem) -> Unit) {
+        fun bind(
+            item: ConversationItem,
+            session: UserSession,
+            directoryById: Map<Long, DirectoryUserDto>,
+            onOpen: (ConversationItem) -> Unit
+        ) {
             val title = when (item.convType) {
                 "P2P" -> {
                     val peer = item.peerUserId ?: 0L
-                    if (peer == session.userId) "我" else "用户 $peer"
+                    if (peer == session.userId) {
+                        session.nickname?.takeIf { it.isNotBlank() }
+                            ?: session.username?.takeIf { it.isNotBlank() }
+                            ?: "我"
+                    } else {
+                        val u = directoryById[peer]
+                        u?.nickname?.takeIf { it.isNotBlank() }
+                            ?: u?.username?.takeIf { it.isNotBlank() }
+                            ?: "用户 $peer"
+                    }
                 }
                 "GROUP" -> "群聊 ${item.groupId ?: ""}"
                 else -> "会话"

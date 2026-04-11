@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     device_uuid VARCHAR(64) UNIQUE,
     username VARCHAR(50) UNIQUE,
+    nickname VARCHAR(64),
     password VARCHAR(100),
     mobile VARCHAR(20),
     token VARCHAR(64),
@@ -67,10 +68,10 @@ CREATE TABLE IF NOT EXISTS im_messages (
 );
 
 -- 测试用户（IM 演示用，内存库每次启动为空可直接插入）
-INSERT INTO users (id, device_uuid, username, password, role)
-VALUES (101, 'im-demo-101', 'alice', 'x', 'user');
-INSERT INTO users (id, device_uuid, username, password, role)
-VALUES (102, 'im-demo-102', 'bob', 'x', 'user');
-INSERT INTO users (id, device_uuid, username, password, role)
-VALUES (103, 'im-demo-103', 'carol', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, nickname, password, role)
+VALUES (101, 'im-demo-101', 'alice', 'alice', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, nickname, password, role)
+VALUES (102, 'im-demo-102', 'bob', 'bob', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, nickname, password, role)
+VALUES (103, 'im-demo-103', 'carol', 'carol', 'x', 'user');
 ALTER TABLE users ALTER COLUMN id RESTART WITH 104;

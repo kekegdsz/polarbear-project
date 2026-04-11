@@ -4,6 +4,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.PUT
 
 @JsonClass(generateAdapter = true)
 data class LoginRequestDto(
@@ -29,9 +30,15 @@ data class LoginEnvelope(
 data class LoginDataDto(
     val userId: String?,
     val token: String?,
+    val nickname: String? = null,
     val mobile: String?,
     @Json(name = "is_vip") val isVip: Boolean = false,
     val role: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class UpdateProfileRequestDto(
+    val nickname: String
 )
 
 interface AuthApi {
@@ -40,4 +47,7 @@ interface AuthApi {
 
     @POST("auth/register")
     suspend fun register(@Body body: RegisterRequestDto): LoginEnvelope
+
+    @PUT("user/profile")
+    suspend fun updateProfile(@Body body: UpdateProfileRequestDto): LoginEnvelope
 }

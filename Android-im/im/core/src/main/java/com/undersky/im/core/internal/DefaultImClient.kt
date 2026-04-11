@@ -180,6 +180,7 @@ internal class DefaultImClient(
                         ImEvent.UserInfoResult(
                             userId = uid,
                             username = obj.optString("username").takeIf { it.isNotEmpty() },
+                            nickname = obj.optString("nickname").takeIf { it.isNotEmpty() },
                             mobile = obj.optString("mobile").takeIf { it.isNotEmpty() }
                         )
                     )

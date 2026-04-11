@@ -90,11 +90,14 @@ class ContactsViewModel(application: Application) : AndroidViewModel(application
     }
 }
 
+private fun DirectoryUserDto.sortKey(): String =
+    nickname?.takeIf { it.isNotBlank() } ?: username?.takeIf { it.isNotBlank() } ?: ""
+
 private fun sortedDirectoryUsers(raw: List<DirectoryUserDto>, selfId: Long): List<DirectoryUserDto> =
     raw
         .filter { it.id != selfId }
         .sortedWith(
-            compareBy<DirectoryUserDto> { (it.username ?: "").isBlank() }
-                .thenBy { it.username?.lowercase() ?: "" }
+            compareBy<DirectoryUserDto> { it.sortKey().isBlank() }
+                .thenBy { it.sortKey().lowercase() }
                 .thenBy { it.id }
         )

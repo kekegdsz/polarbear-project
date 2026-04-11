@@ -98,8 +98,8 @@ class MainFragment : Fragment(), MainChatNavigator {
         )
     }
 
-    override fun openChatP2P(peerUserId: Long) {
-        (requireActivity() as ImHostActivity).navigateMainToChat(peerUserId, -1L, "用户 $peerUserId")
+    override fun openChatP2P(peerUserId: Long, titleFallback: String) {
+        (requireActivity() as ImHostActivity).navigateMainToChat(peerUserId, -1L, titleFallback)
     }
 
     override fun openChatGroup(groupId: Long) {

@@ -56,6 +56,7 @@ public class ImDirectoryController {
         DirectoryUserVO vo = new DirectoryUserVO();
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
+        vo.setNickname(user.getNickname());
         vo.setMobile(user.getMobile());
         return vo;
     }

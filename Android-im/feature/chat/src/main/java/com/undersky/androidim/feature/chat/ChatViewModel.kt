@@ -19,6 +19,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _messages = MutableLiveData<List<ChatMessage>>(emptyList())
     val messages: LiveData<List<ChatMessage>> = _messages
 
+    private val _displayNames = MutableLiveData<Map<Long, String>>(emptyMap())
+    val displayNames: LiveData<Map<Long, String>> = _displayNames
+
     private val _title = MutableLiveData<String>()
     val title: LiveData<String> = _title
 
@@ -27,6 +30,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var peerUserId: Long = -1L
     private var groupId: Long = -1L
     private var titleFallback: String = ""
+    private val prefetchedUserIds = mutableSetOf<Long>()
 
     fun bind(
         session: UserSession,
@@ -38,13 +42,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         this.peerUserId = peerUserIdArg
         this.groupId = groupIdArg
         this.titleFallback = titleFallbackArg
+        prefetchedUserIds.clear()
         _title.value = titleFallbackArg
         _messages.postValue(emptyList())
+
+        val selfLabel = session.nickname?.takeIf { it.isNotBlank() }
+            ?: session.username?.takeIf { it.isNotBlank() }
+            ?: "我"
+        _displayNames.value = mapOf(session.userId to selfLabel)
+        prefetchedUserIds.add(session.userId)
 
         val isP2P = peerUserIdArg != -1L
         if (isP2P) {
             services.imClient.requestHistoryP2P(peerUserIdArg)
             services.imClient.requestUserInfo(peerUserIdArg)
+            prefetchedUserIds.add(peerUserIdArg)
         } else if (groupIdArg != -1L) {
             services.imClient.requestHistoryGroup(groupIdArg)
         }
@@ -66,6 +78,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                         _messages.postValue(filtered)
+                        prefetchSenderProfiles(filtered)
                     }
                     is ImEvent.PrivateMessage -> {
                         if (!isP2P) return@collect
@@ -76,7 +89,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         if (involved && (m.fromUserId == me || m.toUserId == me)) {
                             val cur = _messages.value.orEmpty()
                             if (cur.none { it.msgId == m.msgId }) {
-                                _messages.postValue(cur + m)
+                                val next = cur + m
+                                _messages.postValue(next)
+                                prefetchSenderProfiles(next)
                             }
                         }
                     }
@@ -86,18 +101,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         if (m.groupId == groupIdArg) {
                             val cur = _messages.value.orEmpty()
                             if (cur.none { it.msgId == m.msgId }) {
-                                _messages.postValue(cur + m)
+                                val next = cur + m
+                                _messages.postValue(next)
+                                prefetchSenderProfiles(next)
                             }
                         }
                     }
                     is ImEvent.UserInfoResult -> {
+                        mergeDisplayName(ev.userId, ev.nickname, ev.username)
                         if (isP2P && ev.userId == peerUserIdArg) {
-                            val t = ev.username?.takeIf { it.isNotBlank() } ?: titleFallbackArg
+                            val t = ev.nickname?.takeIf { it.isNotBlank() }
+                                ?: ev.username?.takeIf { it.isNotBlank() }
+                                ?: titleFallbackArg
                             _title.postValue(t)
                         }
                     }
                     else -> Unit
                 }
+            }
+        }
+    }
+
+    private fun mergeDisplayName(userId: Long, nickname: String?, username: String?) {
+        val label = nickname?.takeIf { it.isNotBlank() }
+            ?: username?.takeIf { it.isNotBlank() }
+            ?: "用户 $userId"
+        val cur = _displayNames.value.orEmpty()
+        if (cur[userId] == label) return
+        _displayNames.postValue(cur + (userId to label))
+    }
+
+    private fun prefetchSenderProfiles(messages: List<ChatMessage>) {
+        val me = session?.userId ?: return
+        for (uid in messages.map { it.fromUserId }.distinct()) {
+            if (uid == me) continue
+            if (prefetchedUserIds.add(uid)) {
+                services.imClient.requestUserInfo(uid)
             }
         }
     }

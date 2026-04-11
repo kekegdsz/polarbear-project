@@ -268,6 +268,7 @@ public class ImChatService {
         res.put("type", "USER_INFO_RESULT");
         res.put("userId", u.getId());
         res.put("username", u.getUsername());
+        res.put("nickname", u.getNickname());
         res.put("mobile", u.getMobile());
         res.put("role", u.getRole());
         res.put("vip", u.getVip());

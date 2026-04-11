@@ -8,6 +8,7 @@ import retrofit2.http.Query
 data class DirectoryUserDto(
     val id: Long,
     val username: String? = null,
+    val nickname: String? = null,
     val mobile: String? = null
 )
 
