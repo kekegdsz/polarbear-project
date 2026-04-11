@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.undersky.androidim.data.ChatMessage
+import com.undersky.im.core.api.ChatMessage
 import com.undersky.androidim.databinding.ItemChatMessageMineBinding
 import com.undersky.androidim.databinding.ItemChatMessageOtherBinding
 

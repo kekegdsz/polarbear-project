@@ -1,4 +1,4 @@
-package com.undersky.androidim.data
+package com.undersky.business.user
 
 import java.io.IOException
 import retrofit2.HttpException

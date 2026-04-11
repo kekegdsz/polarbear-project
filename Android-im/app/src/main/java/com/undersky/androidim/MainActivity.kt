@@ -11,9 +11,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
-import com.undersky.androidim.data.AuthTokenHolder
 import com.undersky.androidim.databinding.ActivityMainBinding
 import com.undersky.androidim.notify.PendingChatNavigation
+import com.undersky.business.user.AuthTokenHolder
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -55,9 +55,9 @@ class MainActivity : AppCompatActivity() {
             app.sessionStore.sessionFlow.collect { session ->
                 AuthTokenHolder.set(session?.token)
                 if (session != null) {
-                    app.imSocket.connect(session.userId)
+                    app.imClient.connect(session.userId)
                 } else {
-                    app.imSocket.disconnect(clearUser = true)
+                    app.imClient.disconnect(clearUser = true)
                 }
             }
         }

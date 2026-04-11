@@ -1,10 +1,15 @@
-package com.undersky.androidim.data
+package com.undersky.im.core.internal
 
+import com.undersky.im.core.api.ChatMessage
+import com.undersky.im.core.api.ConversationItem
+import com.undersky.im.core.api.ImClient
+import com.undersky.im.core.api.ImEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -18,41 +23,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.jvm.Volatile
 
-class ImSocketManager(
+internal class DefaultImClient(
     private val client: OkHttpClient,
     private val scope: CoroutineScope,
     private val wsUrl: String
-) {
+) : ImClient {
 
-    companion object {
-        fun buildWsUrl(httpBase: String, wsPath: String): String {
-            val base = httpBase.trimEnd('/')
-            val path = if (wsPath.startsWith("/")) wsPath else "/$wsPath"
-            return when {
-                base.startsWith("https://") -> "wss://" + base.removePrefix("https://") + path
-                base.startsWith("http://") -> "ws://" + base.removePrefix("http://") + path
-                else -> "ws://$base$path"
-            }
-        }
-    }
-
-    sealed class Event {
-        data object SocketOpen : Event()
-        data object SocketClosed : Event()
-        data class AuthOk(val userId: Long) : Event()
-        data class Error(val message: String) : Event()
-        data class Conversations(val items: List<ConversationItem>) : Event()
-        data class PrivateMessage(val message: ChatMessage) : Event()
-        data class GroupMessage(val message: ChatMessage) : Event()
-        data class HistoryResult(val messages: List<ChatMessage>) : Event()
-        data class UserInfoResult(val userId: Long, val username: String?, val mobile: String?) : Event()
-    }
-
-    private val _events = MutableSharedFlow<Event>(
+    private val _events = MutableSharedFlow<ImEvent>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val events = _events.asSharedFlow()
+    override val events: Flow<ImEvent> = _events.asSharedFlow()
 
     @Volatile
     private var webSocket: WebSocket? = null
@@ -62,11 +43,11 @@ class ImSocketManager(
 
     private var reconnectJob: Job? = null
 
-    fun connect(userId: Long) {
+    override fun connect(userId: Long) {
         authUserId = userId
         reconnectJob?.cancel()
         scope.launch(Dispatchers.IO) {
-            synchronized(this@ImSocketManager) {
+            synchronized(this@DefaultImClient) {
                 webSocket?.cancel()
                 val request = Request.Builder().url(wsUrl).build()
                 webSocket = client.newWebSocket(request, listener(userId))
@@ -74,7 +55,7 @@ class ImSocketManager(
         }
     }
 
-    fun disconnect(clearUser: Boolean = true) {
+    override fun disconnect(clearUser: Boolean) {
         reconnectJob?.cancel()
         reconnectJob = null
         if (clearUser) {
@@ -86,33 +67,33 @@ class ImSocketManager(
         }
     }
 
-    fun sendRaw(json: String) {
+    override fun sendRaw(json: String) {
         webSocket?.send(json)
     }
 
-    fun sendAuth(userId: Long) {
+    override fun sendAuth(userId: Long) {
         sendRaw("""{"type":"AUTH","userId":$userId}""")
     }
 
-    fun requestConversations() {
+    override fun requestConversations() {
         sendRaw("""{"type":"CONVERSATIONS"}""")
     }
 
-    fun requestUserInfo(userId: Long) {
+    override fun requestUserInfo(userId: Long) {
         sendRaw("""{"type":"USER_INFO","userId":$userId}""")
     }
 
-    fun requestHistoryP2P(peerUserId: Long, beforeId: Long? = null, limit: Int = 50) {
+    override fun requestHistoryP2P(peerUserId: Long, beforeId: Long?, limit: Int) {
         val before = beforeId?.let { ",\"beforeId\":$it" } ?: ""
         sendRaw("""{"type":"HISTORY","mode":"P2P","peerUserId":$peerUserId,"limit":$limit$before}""")
     }
 
-    fun requestHistoryGroup(groupId: Long, beforeId: Long? = null, limit: Int = 50) {
+    override fun requestHistoryGroup(groupId: Long, beforeId: Long?, limit: Int) {
         val before = beforeId?.let { ",\"beforeId\":$it" } ?: ""
         sendRaw("""{"type":"HISTORY","mode":"GROUP","groupId":$groupId,"limit":$limit$before}""")
     }
 
-    fun sendPrivate(toUserId: Long, body: String) {
+    override fun sendPrivate(toUserId: Long, body: String) {
         val o = JSONObject()
         o.put("type", "PRIVATE_SEND")
         o.put("toUserId", toUserId)
@@ -120,7 +101,7 @@ class ImSocketManager(
         sendRaw(o.toString())
     }
 
-    fun sendGroup(groupId: Long, body: String) {
+    override fun sendGroup(groupId: Long, body: String) {
         val o = JSONObject()
         o.put("type", "GROUP_SEND")
         o.put("groupId", groupId)
@@ -130,7 +111,7 @@ class ImSocketManager(
 
     private fun listener(expectedUserId: Long) = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            scope.launch { _events.emit(Event.SocketOpen) }
+            scope.launch { _events.emit(ImEvent.SocketOpen) }
             sendAuth(expectedUserId)
         }
 
@@ -144,15 +125,15 @@ class ImSocketManager(
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             scope.launch {
-                _events.emit(Event.SocketClosed)
+                _events.emit(ImEvent.SocketClosed)
                 scheduleReconnectIfNeeded()
             }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             scope.launch {
-                _events.emit(Event.Error(t.message ?: "连接失败"))
-                _events.emit(Event.SocketClosed)
+                _events.emit(ImEvent.Error(t.message ?: "连接失败"))
+                _events.emit(ImEvent.SocketClosed)
                 scheduleReconnectIfNeeded()
             }
         }
@@ -165,7 +146,7 @@ class ImSocketManager(
             delay(2500)
             if (authUserId == uid) {
                 withContext(Dispatchers.IO) {
-                    synchronized(this@ImSocketManager) {
+                    synchronized(this@DefaultImClient) {
                         webSocket?.cancel()
                         val request = Request.Builder().url(wsUrl).build()
                         webSocket = client.newWebSocket(request, listener(uid))
@@ -179,24 +160,24 @@ class ImSocketManager(
         val obj = try {
             JSONObject(text)
         } catch (_: Exception) {
-            _events.emit(Event.Error("无效 JSON"))
+            _events.emit(ImEvent.Error("无效 JSON"))
             return
         }
         when (obj.optString("type")) {
             "AUTH_OK" -> {
                 val uid = obj.optLong("userId", -1L)
-                if (uid > 0) _events.emit(Event.AuthOk(uid))
+                if (uid > 0) _events.emit(ImEvent.AuthOk(uid))
             }
-            "ERROR" -> _events.emit(Event.Error(obj.optString("message", "错误")))
+            "ERROR" -> _events.emit(ImEvent.Error(obj.optString("message", "错误")))
             "CONVERSATIONS_RESULT" -> parseConversations(obj)
-            "PRIVATE_MESSAGE" -> parsePrivate(obj)?.let { _events.emit(Event.PrivateMessage(it)) }
-            "GROUP_MESSAGE" -> parseGroup(obj)?.let { _events.emit(Event.GroupMessage(it)) }
+            "PRIVATE_MESSAGE" -> parsePrivate(obj)?.let { _events.emit(ImEvent.PrivateMessage(it)) }
+            "GROUP_MESSAGE" -> parseGroup(obj)?.let { _events.emit(ImEvent.GroupMessage(it)) }
             "HISTORY_RESULT" -> parseHistory(obj)
             "USER_INFO_RESULT" -> {
                 val uid = obj.optLong("userId", -1L)
                 if (uid > 0) {
                     _events.emit(
-                        Event.UserInfoResult(
+                        ImEvent.UserInfoResult(
                             userId = uid,
                             username = obj.optString("username").takeIf { it.isNotEmpty() },
                             mobile = obj.optString("mobile").takeIf { it.isNotEmpty() }
@@ -221,7 +202,7 @@ class ImSocketManager(
                 add(ConversationItem(convType, peer, gid, msg, unreadCount = unread))
             }
         }
-        _events.emit(Event.Conversations(list))
+        _events.emit(ImEvent.Conversations(list))
     }
 
     private suspend fun parseHistory(obj: JSONObject) {
@@ -232,7 +213,7 @@ class ImSocketManager(
                 parseMessageRow(row)?.let { add(it) }
             }
         }
-        _events.emit(Event.HistoryResult(list))
+        _events.emit(ImEvent.HistoryResult(list))
     }
 
     private fun parseMessageRow(o: JSONObject): ChatMessage? {

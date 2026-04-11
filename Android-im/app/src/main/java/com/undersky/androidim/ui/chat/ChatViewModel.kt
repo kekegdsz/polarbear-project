@@ -6,9 +6,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.undersky.androidim.ImApp
-import com.undersky.androidim.data.ChatMessage
-import com.undersky.androidim.data.ImSocketManager
-import com.undersky.androidim.data.UserSession
+import com.undersky.business.user.UserSession
+import com.undersky.im.core.api.ChatMessage
+import com.undersky.im.core.api.ImEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -43,17 +43,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val isP2P = peerUserIdArg != -1L
         if (isP2P) {
-            app.imSocket.requestHistoryP2P(peerUserIdArg)
-            app.imSocket.requestUserInfo(peerUserIdArg)
+            app.imClient.requestHistoryP2P(peerUserIdArg)
+            app.imClient.requestUserInfo(peerUserIdArg)
         } else if (groupIdArg != -1L) {
-            app.imSocket.requestHistoryGroup(groupIdArg)
+            app.imClient.requestHistoryGroup(groupIdArg)
         }
 
         eventsJob?.cancel()
         eventsJob = viewModelScope.launch {
-            app.imSocket.events.collect { ev ->
+            app.imClient.events.collect { ev ->
                 when (ev) {
-                    is ImSocketManager.Event.HistoryResult -> {
+                    is ImEvent.HistoryResult -> {
                         val filtered = ev.messages.filter { m ->
                             if (isP2P) {
                                 val p = peerUserIdArg
@@ -67,7 +67,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         _messages.postValue(filtered)
                     }
-                    is ImSocketManager.Event.PrivateMessage -> {
+                    is ImEvent.PrivateMessage -> {
                         if (!isP2P) return@collect
                         val m = ev.message
                         val peer = peerUserIdArg
@@ -80,7 +80,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     }
-                    is ImSocketManager.Event.GroupMessage -> {
+                    is ImEvent.GroupMessage -> {
                         if (isP2P) return@collect
                         val m = ev.message
                         if (m.groupId == groupIdArg) {
@@ -90,7 +90,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     }
-                    is ImSocketManager.Event.UserInfoResult -> {
+                    is ImEvent.UserInfoResult -> {
                         if (isP2P && ev.userId == peerUserIdArg) {
                             val t = ev.username?.takeIf { it.isNotBlank() } ?: titleFallbackArg
                             _title.postValue(t)
@@ -107,9 +107,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val t = text.trim()
         if (t.isEmpty()) return
         if (peerUserId != -1L) {
-            app.imSocket.sendPrivate(peerUserId, t)
+            app.imClient.sendPrivate(peerUserId, t)
         } else if (groupId != -1L) {
-            app.imSocket.sendGroup(groupId, t)
+            app.imClient.sendGroup(groupId, t)
         }
     }
 

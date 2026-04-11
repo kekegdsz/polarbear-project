@@ -15,8 +15,8 @@ import com.undersky.androidim.MainActivity
 import com.undersky.androidim.R
 import com.undersky.androidim.databinding.FragmentMainBinding
 import com.undersky.androidim.ImApp
-import com.undersky.androidim.ui.applyNavigationBarBottomInset
-import com.undersky.androidim.ui.applyStatusBarTopInset
+import com.undersky.core.common.applyNavigationBarBottomInset
+import com.undersky.core.common.applyStatusBarTopInset
 import com.undersky.androidim.ui.session.SessionViewModel
 
 class MainFragment : Fragment(), MainChatNavigator {

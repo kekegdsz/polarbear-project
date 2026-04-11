@@ -6,8 +6,8 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.undersky.androidim.data.ConversationItem
-import com.undersky.androidim.data.UserSession
+import com.undersky.business.user.UserSession
+import com.undersky.im.core.api.ConversationItem
 import com.undersky.androidim.databinding.ItemConversationBinding
 
 class ConversationAdapter(

@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Android-im"
 include(":app")
+include(":core:common")
+include(":business:user")
+include(":im:core")

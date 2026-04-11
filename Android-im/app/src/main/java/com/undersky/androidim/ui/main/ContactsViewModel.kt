@@ -6,9 +6,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.undersky.androidim.ImApp
-import com.undersky.androidim.data.AuthTokenHolder
-import com.undersky.androidim.data.DirectoryUserDto
-import com.undersky.androidim.data.UserSession
+import com.undersky.business.user.AuthTokenHolder
+import com.undersky.business.user.DirectoryUserDto
+import com.undersky.business.user.UserSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 

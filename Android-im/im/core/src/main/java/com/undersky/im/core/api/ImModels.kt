@@ -1,4 +1,4 @@
-package com.undersky.androidim.data
+package com.undersky.im.core.api
 
 data class ChatMessage(
     val msgId: Long,

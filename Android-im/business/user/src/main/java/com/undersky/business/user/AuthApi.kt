@@ -1,4 +1,4 @@
-package com.undersky.androidim.data
+package com.undersky.business.user
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass

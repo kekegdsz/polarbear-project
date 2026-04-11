@@ -9,10 +9,10 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.undersky.androidim.ImApp
 import com.undersky.androidim.R
-import com.undersky.androidim.data.ChatMessage
-import com.undersky.androidim.data.ConversationItem
-import com.undersky.androidim.data.ImSocketManager
 import com.undersky.androidim.notify.ImMessageNotifier
+import com.undersky.im.core.api.ChatMessage
+import com.undersky.im.core.api.ConversationItem
+import com.undersky.im.core.api.ImEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -85,19 +85,19 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
     private fun startCollecting() {
         if (eventsJob != null) return
         eventsJob = viewModelScope.launch {
-            app.imSocket.events.collect { ev ->
+            app.imClient.events.collect { ev ->
                 when (ev) {
-                    is ImSocketManager.Event.AuthOk -> app.imSocket.requestConversations()
-                    is ImSocketManager.Event.Conversations -> publishMerged(ev.items)
-                    is ImSocketManager.Event.PrivateMessage -> {
+                    is ImEvent.AuthOk -> app.imClient.requestConversations()
+                    is ImEvent.Conversations -> publishMerged(ev.items)
+                    is ImEvent.PrivateMessage -> {
                         maybeIncrementPrivate(ev.message)
                         maybeNotifyIncomingPrivate(ev.message)
-                        app.imSocket.requestConversations()
+                        app.imClient.requestConversations()
                     }
-                    is ImSocketManager.Event.GroupMessage -> {
+                    is ImEvent.GroupMessage -> {
                         maybeIncrementGroup(ev.message)
                         maybeNotifyIncomingGroup(ev.message)
-                        app.imSocket.requestConversations()
+                        app.imClient.requestConversations()
                     }
                     else -> Unit
                 }
@@ -170,6 +170,6 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshConversations() {
-        app.imSocket.requestConversations()
+        app.imClient.requestConversations()
     }
 }

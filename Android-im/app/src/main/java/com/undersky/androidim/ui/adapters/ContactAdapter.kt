@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.undersky.androidim.data.DirectoryUserDto
+import com.undersky.business.user.DirectoryUserDto
 import com.undersky.androidim.databinding.ItemContactBinding
 
 class ContactAdapter(

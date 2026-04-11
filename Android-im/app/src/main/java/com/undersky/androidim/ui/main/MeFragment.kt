@@ -42,7 +42,7 @@ class MeFragment : Fragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 val app = requireActivity().application as ImApp
                 app.sessionStore.clear()
-                app.imSocket.disconnect(clearUser = true)
+                app.imClient.disconnect(clearUser = true)
                 val nav = findNavController()
                 val opts = NavOptions.Builder()
                     .setPopUpTo(R.id.mainFragment, true)

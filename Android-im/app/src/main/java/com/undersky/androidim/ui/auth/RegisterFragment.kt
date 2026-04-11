@@ -13,7 +13,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.undersky.androidim.R
 import com.undersky.androidim.databinding.FragmentRegisterBinding
-import com.undersky.androidim.ui.applyWindowInsetsPadding
+import com.undersky.core.common.applyWindowInsetsPadding
 import kotlinx.coroutines.launch
 
 class RegisterFragment : Fragment() {

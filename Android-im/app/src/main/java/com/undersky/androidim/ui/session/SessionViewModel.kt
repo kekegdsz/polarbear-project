@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import com.undersky.androidim.ImApp
-import com.undersky.androidim.data.UserSession
+import com.undersky.business.user.UserSession
 import kotlinx.coroutines.flow.map
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {

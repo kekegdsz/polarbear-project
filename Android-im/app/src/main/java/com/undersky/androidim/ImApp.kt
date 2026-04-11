@@ -1,23 +1,24 @@
 package com.undersky.androidim
 
 import android.app.Application
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import com.undersky.androidim.data.AuthApi
-import com.undersky.androidim.data.AuthRepository
-import com.undersky.androidim.data.AuthTokenHolder
-import com.undersky.androidim.data.ContactStore
-import com.undersky.androidim.data.ImSocketManager
-import com.undersky.androidim.data.SessionStore
-import com.undersky.androidim.data.UnreadCountStore
-import com.undersky.androidim.data.UserDirectoryApi
-import com.undersky.androidim.data.UserDirectoryCacheStore
-import com.undersky.androidim.data.UserDirectoryRepository
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.undersky.androidim.data.UnreadCountStore
 import com.undersky.androidim.notify.ImMessageNotifier
 import com.undersky.androidim.notify.PendingChatNavigation
+import com.undersky.business.user.AuthApi
+import com.undersky.business.user.AuthRepository
+import com.undersky.business.user.AuthTokenHolder
+import com.undersky.business.user.ContactStore
+import com.undersky.business.user.SessionStore
+import com.undersky.business.user.UserDirectoryApi
+import com.undersky.business.user.UserDirectoryCacheStore
+import com.undersky.business.user.UserDirectoryRepository
+import com.undersky.im.core.ImCore
+import com.undersky.im.core.api.ImClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,7 +42,7 @@ class ImApp : Application() {
         private set
     lateinit var userDirectoryRepository: UserDirectoryRepository
         private set
-    lateinit var imSocket: ImSocketManager
+    lateinit var imClient: ImClient
         private set
 
     lateinit var unreadCountStore: UnreadCountStore
@@ -95,10 +96,11 @@ class ImApp : Application() {
             .pingInterval(25, TimeUnit.SECONDS)
             .build()
 
-        imSocket = ImSocketManager(
-            client = wsClient,
-            scope = applicationScope,
-            wsUrl = ImSocketManager.buildWsUrl(BuildConfig.API_BASE_URL, BuildConfig.IM_WS_PATH)
+        imClient = ImCore.createClient(
+            httpClient = wsClient,
+            coroutineScope = applicationScope,
+            httpBaseUrl = BuildConfig.API_BASE_URL,
+            webSocketPath = BuildConfig.IM_WS_PATH
         )
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

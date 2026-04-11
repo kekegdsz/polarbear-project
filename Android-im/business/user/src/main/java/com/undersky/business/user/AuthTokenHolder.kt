@@ -1,10 +1,7 @@
-package com.undersky.androidim.data
+package com.undersky.business.user
 
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * 为 OkHttp 拦截器提供当前登录 token（与 DataStore 会话同步）。
- */
 object AuthTokenHolder {
     private val ref = AtomicReference<String?>(null)
 

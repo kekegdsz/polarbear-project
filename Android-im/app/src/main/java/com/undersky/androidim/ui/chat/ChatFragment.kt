@@ -12,7 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.undersky.androidim.databinding.FragmentChatBinding
 import com.undersky.androidim.ui.adapters.ChatMessageAdapter
-import com.undersky.androidim.ui.applyWindowInsetsPadding
+import com.undersky.core.common.applyWindowInsetsPadding
 import com.undersky.androidim.ui.session.SessionViewModel
 
 class ChatFragment : Fragment() {
