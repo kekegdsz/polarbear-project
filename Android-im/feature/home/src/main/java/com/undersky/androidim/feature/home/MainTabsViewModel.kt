@@ -13,6 +13,7 @@ import com.undersky.androidim.notify.ImMessageNotifier
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ConversationItem
 import com.undersky.im.core.api.ImEvent
+import com.undersky.im.core.api.chatMessagePreviewLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -168,7 +169,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
         if (appInForeground()) return
         val ctx = getApplication<Application>().applicationContext
         val title = ctx.getString(R.string.notification_title_p2p, peer)
-        ImMessageNotifier.showIncomingMessage(ctx, title, m.body, peer, -1L)
+        ImMessageNotifier.showIncomingMessage(ctx, title, chatMessagePreviewLabel(m.body), peer, -1L)
     }
 
     private fun maybeNotifyIncomingGroup(m: ChatMessage) {
@@ -180,7 +181,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
         if (appInForeground()) return
         val ctx = getApplication<Application>().applicationContext
         val title = ctx.getString(R.string.notification_title_group, gid)
-        ImMessageNotifier.showIncomingMessage(ctx, title, m.body, -1L, gid)
+        ImMessageNotifier.showIncomingMessage(ctx, title, chatMessagePreviewLabel(m.body), -1L, gid)
     }
 
     private fun persistAndPublishConversations(serverList: List<ConversationItem>) {

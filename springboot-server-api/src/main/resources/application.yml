@@ -15,6 +15,10 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 110MB
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -27,8 +31,10 @@ server:
   servlet:
     context-path: /api
 
-# Netty 即时通讯 WebSocket（与 Tomcat 独立端口）
+# IM：附件目录 + Netty WebSocket（独立端口）
 im:
+  upload:
+    dir: ${IM_UPLOAD_DIR:./data/im-upload}
   netty:
     port: 19080
     path: /im/ws

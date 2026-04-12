@@ -43,6 +43,10 @@ class AppServices private constructor(
     val authRepository: AuthRepository,
     val userDirectoryRepository: UserDirectoryRepository,
     val imClient: ImClient,
+    /** 与 Retrofit 同源 OkHttp（含 X-Auth-Token），用于 IM 附件 multipart 上传 */
+    val httpClient: OkHttpClient,
+    /** 如 http://host:8081，不含末尾斜杠 */
+    val apiBaseUrl: String,
 ) {
 
     @Volatile
@@ -90,8 +94,8 @@ class AppServices private constructor(
 
             val okHttp = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
-                .writeTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(120, TimeUnit.SECONDS)
                 .addInterceptor { chain ->
                     val token = AuthTokenHolder.get()
                     val req = if (token != null) {
@@ -125,6 +129,7 @@ class AppServices private constructor(
                 webSocketPath = config.imWebSocketPath
             )
 
+            val base = config.apiBaseUrl.trimEnd('/')
             return AppServices(
                 application = application,
                 applicationScope = applicationScope,
@@ -137,6 +142,8 @@ class AppServices private constructor(
                 authRepository = authRepository,
                 userDirectoryRepository = userDirectoryRepository,
                 imClient = imClient,
+                httpClient = okHttp,
+                apiBaseUrl = base,
             )
         }
     }

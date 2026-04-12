@@ -1,17 +1,28 @@
 package com.undersky.androidim.feature.chat
 
 import android.app.Application
+import android.media.MediaPlayer
+import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.undersky.androidim.bootstrap.BootstrapApplication
+import com.undersky.androidim.feature.chat.media.copyUriToCacheFile
+import com.undersky.androidim.feature.chat.media.decodeImageSize
+import com.undersky.androidim.feature.chat.media.extractVideoDurationMs
+import com.undersky.androidim.feature.chat.media.queryDisplayName
+import com.undersky.androidim.feature.chat.media.uploadImFile
 import com.undersky.business.user.UserSession
 import com.undersky.im.core.CHAT_PAGE_SIZE
 import com.undersky.im.core.CHAT_SYNC_NEWER_LIMIT
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.GroupMemberRow
 import com.undersky.im.core.api.ImEvent
+import com.undersky.im.core.api.mediaUrlFromImJson
+import com.undersky.im.core.api.resolveImAttachmentUrl
+import com.undersky.im.core.api.unwrapImMessageBody
 import com.undersky.im.core.local.ChatConvKeys
 import com.undersky.im.core.local.ChatMessageLocalStore
 import com.undersky.im.core.local.UserProfileLocalStore
@@ -20,6 +31,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
 
 data class GroupDetailUi(
     val groupId: Long,
@@ -59,6 +72,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _groupDetail = MutableLiveData<GroupDetailUi?>(null)
     val groupDetail: LiveData<GroupDetailUi?> = _groupDetail
 
+    /** 当前正在播放的语音 URL（用于气泡高亮；同一条再点即停止） */
+    private val _playingVoiceUrl = MutableLiveData<String?>(null)
+    val playingVoiceUrl: LiveData<String?> = _playingVoiceUrl
+
     private var eventsJob: Job? = null
     private var session: UserSession? = null
     private var peerUserId: Long = -1L
@@ -75,12 +92,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     @Volatile
     private var noMoreOlderHistory: Boolean = false
 
+    private var voicePlayer: MediaPlayer? = null
+
+    /** 刚发出的富媒体：服务端回显 URL → 本机上传前缓存文件路径，用于气泡优先读本地。 */
+    private val pendingSelfMediaLocalByRemoteKey = LinkedHashMap<String, String>()
+
+    private fun registerPendingSelfMedia(remoteUrlOrPath: String, file: File) {
+        val s = remoteUrlOrPath.trim()
+        if (s.isBlank() || !file.exists()) return
+        val keys = buildSet {
+            add(s)
+            add(resolveImAttachmentUrl(s, services.apiBaseUrl))
+        }
+        synchronized(pendingSelfMediaLocalByRemoteKey) {
+            for (k in keys) {
+                if (k.isNotBlank()) pendingSelfMediaLocalByRemoteKey[k] = file.absolutePath
+            }
+            while (pendingSelfMediaLocalByRemoteKey.size > 48) {
+                pendingSelfMediaLocalByRemoteKey.remove(pendingSelfMediaLocalByRemoteKey.keys.first())
+            }
+        }
+    }
+
+    private fun takePendingSelfMedia(remoteUrlFromBody: String): String? {
+        val s0 = remoteUrlFromBody.trim()
+        if (s0.isEmpty()) return null
+        val s1 = resolveImAttachmentUrl(s0, services.apiBaseUrl)
+        return synchronized(pendingSelfMediaLocalByRemoteKey) {
+            pendingSelfMediaLocalByRemoteKey.remove(s0) ?: pendingSelfMediaLocalByRemoteKey.remove(s1)
+        }
+    }
+
+    private fun attachLocalPathIfSelfSent(m: ChatMessage): ChatMessage {
+        val me = session?.userId ?: return m
+        if (m.fromUserId != me) return m
+        val remote = try {
+            mediaUrlFromImJson(JSONObject(unwrapImMessageBody(m.body)))
+        } catch (_: Exception) {
+            return m
+        }
+        if (remote.isBlank()) return m
+        val local = takePendingSelfMedia(remote) ?: m.localMediaPath ?: return m
+        return m.copy(localMediaPath = local)
+    }
+
     fun bind(
         session: UserSession,
         peerUserIdArg: Long,
         groupIdArg: Long,
         titleFallbackArg: String
     ) {
+        stopVoicePlayback()
         this.session = session
         this.peerUserId = peerUserIdArg
         this.groupId = groupIdArg
@@ -95,6 +157,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             ChatConvKeys.group(groupIdArg)
         }
+
+        synchronized(pendingSelfMediaLocalByRemoteKey) { pendingSelfMediaLocalByRemoteKey.clear() }
 
         _title.value = titleFallbackArg
         _userOnline.value = emptyMap()
@@ -252,7 +316,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     m.msgType == "GROUP" && m.groupId == groupIdArg
                 }
-            }
+            }.map { attachLocalPathIfSelfSent(it) }
             val kind = pendingHistory
             pendingHistory = PendingHistory.None
 
@@ -307,12 +371,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun ingestLiveMessage(m: ChatMessage) {
+        val enriched = attachLocalPathIfSelfSent(m)
         viewModelScope.launch(Dispatchers.IO) {
-            localStore.upsert(convKey, listOf(m))
+            localStore.upsert(convKey, listOf(enriched))
             withContext(Dispatchers.Main) {
                 val cur = currentMessages()
-                if (cur.none { it.msgId == m.msgId }) {
-                    val next = (cur + m).sortedBy { it.msgId }
+                if (cur.none { it.msgId == enriched.msgId }) {
+                    val next = (cur + enriched).sortedBy { it.msgId }
                     postMessages(next, ChatScroll.ToBottom)
                     prefetchSenderProfiles(next)
                 }
@@ -418,6 +483,172 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun sendRichJson(
+        json: String,
+        localMediaFile: File? = null,
+        extrasRegisterUrls: List<String> = emptyList()
+    ) {
+        session ?: return
+        val t = json.trim()
+        if (t.isEmpty()) return
+        if (localMediaFile != null) {
+            try {
+                val remote = mediaUrlFromImJson(JSONObject(unwrapImMessageBody(t)))
+                if (remote.isNotBlank()) registerPendingSelfMedia(remote, localMediaFile)
+            } catch (_: Exception) {
+            }
+            for (e in extrasRegisterUrls) {
+                if (e.isNotBlank()) registerPendingSelfMedia(e, localMediaFile)
+            }
+        }
+        if (peerUserId != -1L) {
+            services.imClient.sendPrivate(peerUserId, t)
+        } else if (groupId != -1L) {
+            services.imClient.sendGroup(groupId, t)
+        }
+    }
+
+    private fun toast(msg: String) {
+        viewModelScope.launch(Dispatchers.Main) {
+            Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopVoicePlayback() {
+        try {
+            voicePlayer?.release()
+        } catch (_: Exception) {
+        }
+        voicePlayer = null
+        _playingVoiceUrl.postValue(null)
+    }
+
+    /**
+     * 点击播放语音；若正在播放同一条则停止（再点即停）。
+     */
+    fun playVoiceFromUrl(url: String) {
+        if (url.isBlank()) return
+        viewModelScope.launch(Dispatchers.Main) {
+            if (_playingVoiceUrl.value == url && voicePlayer != null) {
+                stopVoicePlayback()
+                return@launch
+            }
+            stopVoicePlayback()
+            launch(Dispatchers.IO) {
+                try {
+                    val p = MediaPlayer()
+                    p.setDataSource(url)
+                    p.prepare()
+                    withContext(Dispatchers.Main) {
+                        voicePlayer = p
+                        _playingVoiceUrl.value = url
+                        p.setOnCompletionListener {
+                            stopVoicePlayback()
+                        }
+                        p.setOnErrorListener { mp, _, _ ->
+                            try {
+                                mp.release()
+                            } catch (_: Exception) {
+                            }
+                            if (voicePlayer === mp) {
+                                voicePlayer = null
+                                _playingVoiceUrl.postValue(null)
+                            }
+                            toast("无法播放语音")
+                            true
+                        }
+                        p.start()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        toast(e.message ?: "播放失败")
+                        stopVoicePlayback()
+                    }
+                }
+            }
+        }
+    }
+
+    fun uploadImageFromUri(uri: Uri) {
+        session ?: return
+        val ctx = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val name = "up_${System.currentTimeMillis()}.jpg"
+                val f = copyUriToCacheFile(ctx, uri, name)
+                val dim = decodeImageSize(ctx, uri)
+                val up = uploadImFile(services.httpClient, services.apiBaseUrl, f)
+                val mime = up.contentType ?: "image/jpeg"
+                val json = buildImageJson(up.url, mime, dim?.first, dim?.second)
+                withContext(Dispatchers.Main) {
+                    sendRichJson(json, localMediaFile = f, extrasRegisterUrls = listOf(up.path))
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { toast(e.message ?: "发送图片失败") }
+            }
+        }
+    }
+
+    fun uploadVideoFromUri(uri: Uri) {
+        session ?: return
+        val ctx = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val ext = when (ctx.contentResolver.getType(uri)) {
+                    "video/quicktime" -> "mov"
+                    else -> "mp4"
+                }
+                val name = "vid_${System.currentTimeMillis()}.$ext"
+                val f = copyUriToCacheFile(ctx, uri, name)
+                val dur = extractVideoDurationMs(f)
+                val up = uploadImFile(services.httpClient, services.apiBaseUrl, f)
+                val mime = up.contentType ?: "video/mp4"
+                val json = buildVideoJson(up.url, mime, dur)
+                withContext(Dispatchers.Main) {
+                    sendRichJson(json, localMediaFile = f, extrasRegisterUrls = listOf(up.path))
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { toast(e.message ?: "发送视频失败") }
+            }
+        }
+    }
+
+    fun uploadFileFromUri(uri: Uri) {
+        session ?: return
+        val ctx = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val disp = queryDisplayName(ctx, uri)
+                val safe = disp.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(80)
+                val name = "${System.currentTimeMillis()}_$safe"
+                val f = copyUriToCacheFile(ctx, uri, name)
+                val up = uploadImFile(services.httpClient, services.apiBaseUrl, f, filename = safe)
+                val mime = up.contentType ?: "application/octet-stream"
+                val json = buildFileJson(up.url, disp, mime, up.size)
+                withContext(Dispatchers.Main) {
+                    sendRichJson(json, localMediaFile = f, extrasRegisterUrls = listOf(up.path))
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { toast(e.message ?: "发送文件失败") }
+            }
+        }
+    }
+
+    fun uploadVoiceFile(file: File, durationMs: Long) {
+        session ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val up = uploadImFile(services.httpClient, services.apiBaseUrl, file, filename = file.name)
+                val json = buildVoiceJson(up.url, durationMs.coerceAtLeast(0L))
+                withContext(Dispatchers.Main) {
+                    sendRichJson(json, localMediaFile = file, extrasRegisterUrls = listOf(up.path))
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { toast(e.message ?: "发送语音失败") }
+            }
+        }
+    }
+
     fun requestGroupInfoRefresh() {
         if (groupId > 0) {
             services.imClient.requestGroupInfo(groupId)
@@ -478,5 +709,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         eventsJob?.cancel()
+        stopVoicePlayback()
     }
 }

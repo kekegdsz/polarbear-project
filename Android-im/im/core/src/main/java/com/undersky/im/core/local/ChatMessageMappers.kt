@@ -10,7 +10,8 @@ internal fun ChatMessageEntity.toApi(): ChatMessage =
         toUserId = toUserId,
         groupId = groupId,
         body = body,
-        createdAt = createdAt
+        createdAt = createdAt,
+        localMediaPath = localMediaPath
     )
 
 internal fun ChatMessage.toEntity(convKey: String): ChatMessageEntity =
@@ -22,7 +23,8 @@ internal fun ChatMessage.toEntity(convKey: String): ChatMessageEntity =
         toUserId = toUserId,
         groupId = groupId,
         body = body,
-        createdAt = createdAt
+        createdAt = createdAt,
+        localMediaPath = localMediaPath
     )
 
 object ChatConvKeys {

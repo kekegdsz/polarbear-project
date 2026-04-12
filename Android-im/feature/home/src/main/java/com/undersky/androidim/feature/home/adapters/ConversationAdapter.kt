@@ -10,6 +10,7 @@ import com.undersky.androidim.feature.home.databinding.ItemConversationBinding
 import com.undersky.business.user.DirectoryUserDto
 import com.undersky.business.user.UserSession
 import com.undersky.im.core.api.ConversationItem
+import com.undersky.im.core.api.chatMessagePreviewLabel
 import com.undersky.androidim.shared.ui.bindPresenceLabel
 
 class ConversationAdapter(
@@ -72,7 +73,7 @@ class ConversationAdapter(
             }
             binding.avatarLetter.text = title.take(1)
             binding.textTitle.text = title
-            binding.textPreview.text = item.lastMessage.body
+            binding.textPreview.text = chatMessagePreviewLabel(item.lastMessage.body)
             binding.textTime.text = item.lastMessage.createdAt?.takeLast(8).orEmpty()
             val p2pPeer = item.convType == "P2P" && (item.peerUserId ?: 0L) > 0L &&
                 (item.peerUserId ?: 0L) != session.userId

@@ -2,6 +2,7 @@ package com.undersky.im.core.local
 
 import android.content.Context
 import com.undersky.im.core.api.ChatMessage
+import java.io.File
 
 /** 本地持久化聊天消息（Room），按会话 convKey 分表查询。 */
 class ChatMessageLocalStore(context: Context) {
@@ -10,7 +11,14 @@ class ChatMessageLocalStore(context: Context) {
 
     suspend fun upsert(convKey: String, messages: List<ChatMessage>) {
         if (messages.isEmpty()) return
-        dao.upsertAll(messages.map { it.toEntity(convKey) })
+        val merged = messages.map { incoming ->
+            val prev = dao.findByConvAndMsgId(convKey, incoming.msgId)
+            val reuse = prev?.localMediaPath?.takeIf { p ->
+                File(p).exists() && incoming.localMediaPath == null
+            }
+            incoming.copy(localMediaPath = incoming.localMediaPath ?: reuse)
+        }
+        dao.upsertAll(merged.map { it.toEntity(convKey) })
     }
 
     suspend fun loadLatestPage(convKey: String, limit: Int): List<ChatMessage> =

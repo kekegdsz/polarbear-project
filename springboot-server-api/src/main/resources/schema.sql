@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS im_messages (
     from_user_id BIGINT NOT NULL,
     to_user_id BIGINT,
     group_id BIGINT,
-    body VARCHAR(4000) NOT NULL,
+    body CLOB NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

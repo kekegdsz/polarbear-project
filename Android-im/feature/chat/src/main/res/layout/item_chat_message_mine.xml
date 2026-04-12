@@ -18,21 +18,103 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:maxWidth="280dp"
             android:ellipsize="end"
+            android:maxWidth="280dp"
             android:maxLines="1"
             android:textAppearance="?attr/textAppearanceLabelSmall"
             android:textColor="?android:attr/textColorSecondary" />
 
-        <TextView
-            android:id="@+id/text_body"
+        <FrameLayout
+            android:id="@+id/bubble_inner"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_bubble_mine"
             android:maxWidth="280dp"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="10dp"
-            android:textAppearance="?attr/textAppearanceBodyLarge" />
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp">
+
+            <TextView
+                android:id="@+id/text_body"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="260dp"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+            <!-- 图片与视频共用：大图区域一致；视频叠加播放按钮 + 右下角时长 -->
+            <FrameLayout
+                android:id="@+id/panel_visual"
+                android:layout_width="260dp"
+                android:layout_height="220dp"
+                android:background="@drawable/bg_visual_media_rounded"
+                android:foreground="?attr/selectableItemBackground"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/image_visual"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="图片或视频"
+                    android:scaleType="centerCrop" />
+
+                <ImageView
+                    android:id="@+id/icon_video_play"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="center"
+                    android:alpha="0.95"
+                    android:contentDescription="播放"
+                    android:src="@android:drawable/ic_media_play"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/text_video_duration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="8dp"
+                    android:background="#99000000"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:textColor="@android:color/white"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:id="@+id/panel_voice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_voice_panel"
+                android:gravity="center_vertical"
+                android:minHeight="40dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/icon_voice_state"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▶"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/text_voice_duration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="8dp"
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/text_file"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="260dp"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
     <FrameLayout

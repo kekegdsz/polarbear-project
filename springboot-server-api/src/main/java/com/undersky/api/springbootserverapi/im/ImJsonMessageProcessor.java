@@ -84,6 +84,23 @@ public class ImJsonMessageProcessor {
         return Long.parseLong(String.valueOf(o));
     }
 
+    /**
+     * 客户端 body 应为 JSON 字符串；若 Jackson 将内层 JSON 解析成 Map，则再序列化回字符串，避免入库成 {@code {k=img}} 导致端上无法展示。
+     */
+    private String bodyToStoredString(Object bodyObj) {
+        if (bodyObj == null) {
+            return "";
+        }
+        if (bodyObj instanceof String s) {
+            return s.trim();
+        }
+        try {
+            return objectMapper.writeValueAsString(bodyObj);
+        } catch (Exception e) {
+            return String.valueOf(bodyObj);
+        }
+    }
+
     private void handleAuth(ImSessionEndpoint ep, Map<String, Object> msg) {
         long userId = longVal(msg.get("userId"));
         chatService.requireUser(userId);
@@ -99,7 +116,7 @@ public class ImJsonMessageProcessor {
     private void handlePrivateSend(ImSessionEndpoint ep, Map<String, Object> msg) {
         requireAuth(ep);
         long to = longVal(msg.get("toUserId"));
-        String body = msg.get("body") == null ? "" : String.valueOf(msg.get("body"));
+        String body = bodyToStoredString(msg.get("body"));
         ImMessage m = chatService.sendPrivate(uid(ep), to, body);
         chatService.sendJson(ep, chatService.toPrivatePush(m));
         chatService.pushPrivateToPeer(m);
@@ -108,7 +125,7 @@ public class ImJsonMessageProcessor {
     private void handleGroupSend(ImSessionEndpoint ep, Map<String, Object> msg) {
         requireAuth(ep);
         long gid = longVal(msg.get("groupId"));
-        String body = msg.get("body") == null ? "" : String.valueOf(msg.get("body"));
+        String body = bodyToStoredString(msg.get("body"));
         ImMessage m = chatService.sendGroup(uid(ep), gid, body);
         chatService.sendJson(ep, chatService.toGroupPush(m));
         chatService.broadcastGroupMessage(m);

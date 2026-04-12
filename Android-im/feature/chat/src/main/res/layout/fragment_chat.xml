@@ -31,6 +31,14 @@
         android:orientation="horizontal"
         android:padding="8dp">
 
+        <ImageButton
+            android:id="@+id/button_attach"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="附件"
+            android:src="@android:drawable/ic_input_add" />
+
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edit_message"
             android:layout_width="0dp"

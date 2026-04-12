@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ChatMessageEntity::class, UserProfileEntity::class, ConversationListEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class ImDatabase : RoomDatabase() {
@@ -60,6 +60,12 @@ abstract class ImDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN localMediaPath TEXT")
+            }
+        }
+
         @Volatile
         private var instance: ImDatabase? = null
 
@@ -70,7 +76,7 @@ abstract class ImDatabase : RoomDatabase() {
                     ImDatabase::class.java,
                     "undersky_im.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

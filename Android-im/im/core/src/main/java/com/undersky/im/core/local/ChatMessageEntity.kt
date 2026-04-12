@@ -16,5 +16,6 @@ data class ChatMessageEntity(
     val toUserId: Long?,
     val groupId: Long?,
     val body: String,
-    val createdAt: String?
+    val createdAt: String?,
+    val localMediaPath: String? = null
 )
