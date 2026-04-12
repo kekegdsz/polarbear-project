@@ -11,6 +11,7 @@ import com.undersky.api.springbootserverapi.im.session.ImSessionManager;
 import com.undersky.api.springbootserverapi.mapper.UserMapper;
 import com.undersky.api.springbootserverapi.im.session.ImSessionEndpoint;
 import com.undersky.api.springbootserverapi.model.entity.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,10 @@ public class ImChatService {
     private final UserMapper userMapper;
     private final ImSessionManager sessionManager;
     private final ObjectMapper objectMapper;
+
+    /** 后台向群/用户发系统消息时使用的发送方用户 ID（需在 users 表存在） */
+    @Value("${im.system-sender-user-id:999}")
+    private long systemSenderUserId;
 
     public ImChatService(ImMessageMapper messageMapper,
                          ImGroupMapper groupMapper,
@@ -258,6 +263,29 @@ public class ImChatService {
         msg.setToUserId(toUserId);
         msg.setBody(body.trim());
         messageMapper.insert(msg);
+        return msg;
+    }
+
+    /**
+     * 管理后台：系统账号向指定用户发送一条私聊（发送方不必与对方有会话关系）。
+     */
+    @Transactional
+    public ImMessage adminSystemPrivateToUser(long toUserId, String body) {
+        if (toUserId == systemSenderUserId) {
+            throw new IllegalArgumentException("不能向系统账号自身发信");
+        }
+        requireUser(systemSenderUserId);
+        requireUser(toUserId);
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("消息不能为空");
+        }
+        ImMessage msg = new ImMessage();
+        msg.setMsgType(ImMessage.TYPE_P2P);
+        msg.setFromUserId(systemSenderUserId);
+        msg.setToUserId(toUserId);
+        msg.setBody(body.trim());
+        messageMapper.insert(msg);
+        pushPrivateToPeer(msg);
         return msg;
     }
 
@@ -522,5 +550,66 @@ public class ImChatService {
         }
         groupMemberMapper.updateRole(groupId, targetUserId, ImGroupMember.ROLE_MEMBER);
         return groupInfo(groupId, actorUserId);
+    }
+
+    /**
+     * 管理后台：以系统账号向群内广播一条群消息（发送方不必在群内）。
+     */
+    @Transactional
+    public ImMessage adminBroadcastGroup(long groupId, String body) {
+        ImGroup g = groupMapper.findById(groupId);
+        if (g == null) {
+            throw new IllegalArgumentException("群不存在");
+        }
+        requireUser(systemSenderUserId);
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("消息不能为空");
+        }
+        ImMessage msg = new ImMessage();
+        msg.setMsgType(ImMessage.TYPE_GROUP);
+        msg.setFromUserId(systemSenderUserId);
+        msg.setGroupId(groupId);
+        msg.setBody(body.trim());
+        messageMapper.insert(msg);
+        broadcastGroupMessage(msg);
+        return msg;
+    }
+
+    /**
+     * 管理后台：系统账号向群内指定成员各发一条私聊（校验成员在群内）。
+     */
+    @Transactional
+    public int adminPrivateNotifyGroupMembers(long groupId, List<Long> userIds, String body) {
+        ImGroup g = groupMapper.findById(groupId);
+        if (g == null) {
+            throw new IllegalArgumentException("群不存在");
+        }
+        requireUser(systemSenderUserId);
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("消息不能为空");
+        }
+        if (userIds == null || userIds.isEmpty()) {
+            throw new IllegalArgumentException("请指定用户");
+        }
+        String text = body.trim();
+        int n = 0;
+        for (Long uid : userIds) {
+            if (uid == null) {
+                continue;
+            }
+            if (groupMemberMapper.countMember(groupId, uid) == 0) {
+                throw new IllegalArgumentException("用户不在该群内: " + uid);
+            }
+            requireUser(uid);
+            ImMessage msg = new ImMessage();
+            msg.setMsgType(ImMessage.TYPE_P2P);
+            msg.setFromUserId(systemSenderUserId);
+            msg.setToUserId(uid);
+            msg.setBody(text);
+            messageMapper.insert(msg);
+            pushPrivateToPeer(msg);
+            n++;
+        }
+        return n;
     }
 }

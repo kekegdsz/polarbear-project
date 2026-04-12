@@ -75,4 +75,6 @@ INSERT INTO users (id, device_uuid, username, nickname, password, role)
 VALUES (102, 'im-demo-102', 'bob', 'bob', 'x', 'user');
 INSERT INTO users (id, device_uuid, username, nickname, password, role)
 VALUES (103, 'im-demo-103', 'carol', 'carol', 'x', 'user');
+INSERT INTO users (id, device_uuid, username, nickname, password, role)
+VALUES (999, 'im-system', 'im_system', '系统通知', 'x', 'admin');
 ALTER TABLE users ALTER COLUMN id RESTART WITH 104;

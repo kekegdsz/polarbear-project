@@ -4,6 +4,7 @@
       <div class="sidebar-header">Admin</div>
       <nav class="menu">
         <router-link to="/admin/users" class="menu-item" active-class="active">用户</router-link>
+        <router-link to="/admin/groups" class="menu-item" active-class="active">群管理</router-link>
         <router-link to="/admin/versions" class="menu-item" active-class="active">版本管理</router-link>
         <router-link to="/admin/orders" class="menu-item" active-class="active">订单管理</router-link>
       </nav>

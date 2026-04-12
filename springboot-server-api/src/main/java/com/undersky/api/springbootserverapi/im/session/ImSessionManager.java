@@ -37,4 +37,9 @@ public class ImSessionManager {
     public void forEachOnline(BiConsumer<Long, ImSessionEndpoint> consumer) {
         userIdToEndpoint.forEach(consumer);
     }
+
+    /** 当前 IM 在线会话数（与在线用户数一致，多端登录同一账号只计 1） */
+    public int onlineSessionCount() {
+        return userIdToEndpoint.size();
+    }
 }

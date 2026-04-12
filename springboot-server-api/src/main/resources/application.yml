@@ -35,6 +35,8 @@ server:
 im:
   upload:
     dir: ${IM_UPLOAD_DIR:./data/im-upload}
+  # 管理后台向群/指定用户发系统消息时的 from_user_id（须存在于 users 表，schema 已插入 id=999）
+  system-sender-user-id: ${IM_SYSTEM_SENDER_ID:999}
   netty:
     port: 19080
     path: /im/ws

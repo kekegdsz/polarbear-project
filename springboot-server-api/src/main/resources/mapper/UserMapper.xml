@@ -70,6 +70,10 @@
         SELECT COUNT(1) FROM users
     </select>
 
+    <select id="countAllExcludingImSystem" resultType="long">
+        SELECT COUNT(1) FROM users WHERE id &lt;&gt; 999
+    </select>
+
     <select id="countToday" resultType="long">
         SELECT COUNT(1) FROM users
         WHERE DATE(created_at) = CURRENT_DATE
@@ -83,8 +87,9 @@
         SELECT <include refid="Base_Column_List"/>
         FROM users
         <where>
+            id &lt;&gt; 999
             <if test="keyword != null and keyword != ''">
-                (username LIKE CONCAT('%', #{keyword}, '%')
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
                 OR mobile LIKE CONCAT('%', #{keyword}, '%'))
             </if>
         </where>
@@ -92,9 +97,25 @@
         LIMIT #{size} OFFSET #{offset}
     </select>
 
+    <select id="countUsers" resultType="long">
+        SELECT COUNT(1) FROM users
+        <where>
+            id &lt;&gt; 999
+            <if test="keyword != null and keyword != ''">
+                AND (username LIKE CONCAT('%', #{keyword}, '%')
+                OR mobile LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO users (device_uuid, username, nickname, password, mobile, token, token_expire_time, vip, role, created_at, updated_at)
         VALUES (#{deviceUuid}, #{username}, #{nickname}, #{password}, #{mobile}, #{token}, #{tokenExpireTime}, #{vip}, #{role}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <insert id="insertWithId">
+        INSERT INTO users (id, device_uuid, username, nickname, password, mobile, vip, role, created_at, updated_at)
+        VALUES (#{id}, #{deviceUuid}, #{username}, #{nickname}, #{password}, #{mobile}, 'normal', #{role}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     </insert>
 
     <update id="updateById">

@@ -26,6 +26,9 @@ public interface UserMapper {
 
     long countAll();
 
+    /** 统计不含 IM 系统发信账号（默认 id=999） */
+    long countAllExcludingImSystem();
+
     long countToday();
 
     long countVip();
@@ -34,11 +37,16 @@ public interface UserMapper {
                            @Param("size") int size,
                            @Param("keyword") String keyword);
 
+    long countUsers(@Param("keyword") String keyword);
+
     int countByUsername(@Param("username") String username);
 
     int countByMobile(@Param("mobile") String mobile);
 
     int insert(User user);
+
+    /** 指定主键插入（用于系统账号） */
+    int insertWithId(User user);
 
     int updateById(User user);
 

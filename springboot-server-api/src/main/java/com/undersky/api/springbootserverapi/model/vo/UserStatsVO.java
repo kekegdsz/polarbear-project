@@ -8,6 +8,8 @@ public class UserStatsVO {
     private long totalUsers;
     private long todayUsers;
     private long vipUsers;
+    /** 当前 IM WebSocket 在线用户数 */
+    private long onlineImUsers;
 
     public long getTotalUsers() {
         return totalUsers;
@@ -31,6 +33,14 @@ public class UserStatsVO {
 
     public void setVipUsers(long vipUsers) {
         this.vipUsers = vipUsers;
+    }
+
+    public long getOnlineImUsers() {
+        return onlineImUsers;
+    }
+
+    public void setOnlineImUsers(long onlineImUsers) {
+        this.onlineImUsers = onlineImUsers;
     }
 }
 

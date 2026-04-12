@@ -26,4 +26,14 @@
     <update id="updateName">
         UPDATE im_groups SET name = #{name} WHERE id = #{groupId}
     </update>
+
+    <select id="listAllForAdmin" resultType="com.undersky.api.springbootserverapi.model.vo.ImGroupAdminListVO">
+        SELECT g.id AS id,
+               g.name AS name,
+               g.owner_user_id AS ownerUserId,
+               g.created_at AS createdAt,
+               (SELECT COUNT(1) FROM im_group_members m WHERE m.group_id = g.id) AS memberCount
+        FROM im_groups g
+        ORDER BY g.id DESC
+    </select>
 </mapper>
