@@ -1,7 +1,9 @@
 package com.undersky.androidim.feature.chat.adapters
 
+import android.graphics.Color
 import android.util.TypedValue
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -22,7 +24,7 @@ import com.undersky.androidim.feature.chat.R
 import com.undersky.androidim.feature.chat.databinding.ItemChatMessageMineBinding
 import com.undersky.androidim.feature.chat.databinding.ItemChatMessageOtherBinding
 import com.undersky.androidim.feature.chat.databinding.ItemChatTimeHeaderBinding
-import com.undersky.androidim.feature.chat.parseBubbleBody
+import com.undersky.androidim.feature.chat.parseBubble
 import com.undersky.androidim.feature.chat.avatarLetter
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.resolveImAttachmentUrl
@@ -37,13 +39,21 @@ class ChatMessageAdapter(
     private val apiBaseUrl: String,
     /** 点击图片 / 视频气泡：传入消息 id，由界面打开可左右滑浏览的媒体查看器 */
     private val onVisualMediaOpen: (msgId: Long) -> Unit,
-    private val onPlayVoice: (String) -> Unit
+    private val onPlayVoice: (String) -> Unit,
+    /** 长按气泡：复制等操作（对标微信 / Telegram） */
+    private val onBubbleLongPress: ((ChatMessage) -> Unit)? = null,
+    /** 点击引用条：跳转到被引用消息（列表内滚动） */
+    private val onReplyRefClick: ((Long) -> Unit)? = null,
+    /** 长按语音条：循环播放倍速（微信无此快捷方式） */
+    private val onVoiceSpeedCycle: (() -> Unit)? = null
 ) : ListAdapter<ChatListItem, RecyclerView.ViewHolder>(Diff) {
 
     private fun resolveMedia(raw: String): String = resolveImAttachmentUrl(raw, apiBaseUrl)
 
     private var onlineByUserId: Map<Long, Boolean> = emptyMap()
     private var playingVoiceUrl: String? = null
+    private var highlightMsgId: Long? = null
+    private var voiceSpeedLabel: Float = 1f
 
     companion object {
         private const val TYPE_TIME = 0
@@ -64,6 +74,28 @@ class ChatMessageAdapter(
     fun setPlayingVoiceUrl(url: String?) {
         if (playingVoiceUrl == url) return
         playingVoiceUrl = url
+        notifyDataSetChanged()
+    }
+
+    fun updateHighlightMessageId(newId: Long?) {
+        val old = highlightMsgId
+        highlightMsgId = newId
+        fun indexOf(mid: Long?): Int {
+            if (mid == null) return RecyclerView.NO_POSITION
+            return currentList.indexOfFirst {
+                it is ChatListItem.MessageRow && it.message.msgId == mid
+            }
+        }
+        val io = indexOf(old)
+        val ni = indexOf(newId)
+        if (io != RecyclerView.NO_POSITION) notifyItemChanged(io)
+        if (ni != RecyclerView.NO_POSITION && ni != io) notifyItemChanged(ni)
+    }
+
+    fun setVoiceSpeedForLabel(speed: Float) {
+        val s = speed.coerceAtLeast(0.5f)
+        if (voiceSpeedLabel == s) return
+        voiceSpeedLabel = s
         notifyDataSetChanged()
     }
 
@@ -96,11 +128,15 @@ class ChatMessageAdapter(
 
     private fun bindMine(holder: MineVh, item: ChatListItem.MessageRow) {
         val b = holder.binding
+        val showMeta = item.showSenderMeta
+        b.avatarWrap.isVisible = showMeta
+        b.textNickname.isVisible = showMeta
         b.textNickname.text = item.displayName
         b.avatarLetter.text = avatarLetter(item.displayName)
         val selfOn = onlineByUserId[selfUserId] ?: true
-        b.textPresence.bindPresenceLabel(selfOn, show = true)
+        b.textPresence.bindPresenceLabel(selfOn, show = showMeta)
         bindRich(
+            b.replyStrip,
             b.textBody,
             b.panelVisual,
             b.imageVisual,
@@ -112,16 +148,22 @@ class ChatMessageAdapter(
             b.textFile,
             item.message
         )
+        wireBubbleLongPress(b.bubbleInner, item.message)
+        applyRowHighlight(holder.itemView, item.message.msgId)
     }
 
     private fun bindOther(holder: OtherVh, item: ChatListItem.MessageRow) {
         val b = holder.binding
+        val showMeta = item.showSenderMeta
+        b.avatarWrap.isVisible = showMeta
+        b.textNickname.isVisible = showMeta
         b.textNickname.text = item.displayName
         b.avatarLetter.text = avatarLetter(item.displayName)
         val uid = item.message.fromUserId
         val online = onlineByUserId[uid]
-        b.textPresence.bindPresenceLabel(online, show = true)
+        b.textPresence.bindPresenceLabel(online, show = showMeta)
         bindRich(
+            b.replyStrip,
             b.textBody,
             b.panelVisual,
             b.imageVisual,
@@ -133,6 +175,28 @@ class ChatMessageAdapter(
             b.textFile,
             item.message
         )
+        wireBubbleLongPress(b.bubbleInner, item.message)
+        applyRowHighlight(holder.itemView, item.message.msgId)
+    }
+
+    private fun applyRowHighlight(row: View, msgId: Long) {
+        row.setBackgroundColor(
+            if (msgId == highlightMsgId) 0x280F9D74 else Color.TRANSPARENT
+        )
+    }
+
+    private fun wireBubbleLongPress(bubbleInner: View, message: ChatMessage) {
+        val cb = onBubbleLongPress
+        if (cb == null) {
+            bubbleInner.setOnLongClickListener(null)
+            bubbleInner.isLongClickable = false
+            return
+        }
+        bubbleInner.isLongClickable = true
+        bubbleInner.setOnLongClickListener {
+            cb(message)
+            true
+        }
     }
 
     /** 自己发送且缓存文件仍在时优先用本地文件给 Coil；点击/预览仍走网络 URL 便于分享与兼容。 */
@@ -148,6 +212,7 @@ class ChatMessageAdapter(
     }
 
     private fun bindRich(
+        replyStrip: TextView,
         textBody: TextView,
         panelVisual: FrameLayout,
         imageVisual: ImageView,
@@ -160,6 +225,24 @@ class ChatMessageAdapter(
         message: ChatMessage
     ) {
         val body = message.body
+        val parsed = parseBubble(body)
+        val ref = parsed.reply
+        if (ref != null && ref.refMsgId > 0L) {
+            replyStrip.isVisible = true
+            val who = ref.fromLabel?.takeIf { it.isNotBlank() } ?: "消息"
+            val pv = ref.preview.takeIf { it.isNotBlank() } ?: "…"
+            replyStrip.text = "▎ $who：$pv"
+            val jump = onReplyRefClick
+            if (jump != null) {
+                replyStrip.setOnClickListener { jump(ref.refMsgId) }
+            } else {
+                replyStrip.setOnClickListener(null)
+            }
+        } else {
+            replyStrip.isVisible = false
+            replyStrip.setOnClickListener(null)
+        }
+
         val ctx = textBody.context
         val cornerPx = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
@@ -175,7 +258,7 @@ class ChatMessageAdapter(
         panelVoice.setOnClickListener(null)
         textFile.setOnClickListener(null)
 
-        when (val c = parseBubbleBody(body)) {
+        when (val c = parsed.content) {
             is BubbleContent.PlainText -> {
                 textBody.isVisible = true
                 textBody.text = c.text
@@ -229,13 +312,29 @@ class ChatMessageAdapter(
                 }
                 val playing = voiceUrl == playingVoiceUrl
                 iconVoiceState.text = if (playing) "❚❚" else "▶"
-                textVoiceDuration.text = if (playing) {
-                    "${sec}s · 播放中"
+                val speedHint = if (voiceSpeedLabel != 1f) {
+                    " · ${trimSpeedLabel(voiceSpeedLabel)}x"
                 } else {
-                    "${sec}s · 点击播放"
+                    ""
+                }
+                textVoiceDuration.text = if (playing) {
+                    "${sec}s · 播放中$speedHint"
+                } else {
+                    "${sec}s · 点击播放$speedHint"
                 }
                 panelVoice.alpha = if (playing) 0.92f else 1f
                 panelVoice.setOnClickListener { onPlayVoice(voiceUrl) }
+                val speedCb = onVoiceSpeedCycle
+                if (speedCb != null) {
+                    panelVoice.isLongClickable = true
+                    panelVoice.setOnLongClickListener {
+                        speedCb()
+                        true
+                    }
+                } else {
+                    panelVoice.setOnLongClickListener(null)
+                    panelVoice.isLongClickable = false
+                }
             }
             is BubbleContent.FileMsg -> {
                 textFile.isVisible = true
@@ -246,6 +345,11 @@ class ChatMessageAdapter(
                 }
             }
         }
+    }
+
+    private fun trimSpeedLabel(s: Float): String {
+        val t = String.format(java.util.Locale.US, "%.1f", s).trimEnd('0').trimEnd('.')
+        return if (t.isEmpty()) "1" else t
     }
 
     private fun formatVideoDurationLabel(ms: Long): String {

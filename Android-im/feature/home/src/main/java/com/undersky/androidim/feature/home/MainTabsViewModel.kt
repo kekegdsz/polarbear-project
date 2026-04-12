@@ -14,12 +14,19 @@ import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ConversationItem
 import com.undersky.im.core.api.ImEvent
 import com.undersky.im.core.api.chatMessagePreviewLabel
+import com.undersky.im.core.local.ChatConvKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
 import kotlin.jvm.Volatile
+
+/** 会话列表「管理隐藏」弹窗用一行数据。 */
+data class HiddenConversationRow(
+    val convKey: String,
+    val title: String,
+)
 
 class MainTabsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -49,6 +56,10 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
     @Volatile
     private var conversationsHydratedFromServer: Boolean = false
 
+    /** 最近一次完整会话列表（服务端或本地缓存），用于在未重新拉取前正确合并未读 / 隐藏 / 置顶 */
+    @Volatile
+    private var lastServerConversationSource: List<ConversationItem> = emptyList()
+
     private var eventsJob: Job? = null
     private var sessionJob: Job? = null
 
@@ -65,6 +76,7 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
                         openP2PPeer = null
                         openGroupId = null
                         conversationsHydratedFromServer = false
+                        lastServerConversationSource = emptyList()
                         publishMerged(emptyList())
                     } else {
                         conversationsHydratedFromServer = false
@@ -196,7 +208,18 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun publishMerged(serverList: List<ConversationItem>) {
-        val merged = serverList.map { item ->
+        if (serverList.isNotEmpty()) {
+            lastServerConversationSource = serverList.toList()
+        } else if (selfUserId == null) {
+            lastServerConversationSource = emptyList()
+        }
+        applyConversationTransforms()
+    }
+
+    private fun applyConversationTransforms() {
+        val uid = selfUserId
+        val source = lastServerConversationSource
+        val merged = source.map { item ->
             val u = when (item.convType) {
                 "P2P" -> unreadStore.getP2p(item.peerUserId ?: 0L)
                 "GROUP" -> unreadStore.getGroup(item.groupId ?: 0L)
@@ -204,15 +227,94 @@ class MainTabsViewModel(application: Application) : AndroidViewModel(application
             }
             item.copy(unreadCount = u)
         }
-        _conversations.postValue(merged)
-        _totalUnread.postValue(merged.sumOf { it.unreadCount })
+        val hidden = if (uid != null) services.hiddenConversationStore.getHidden(uid) else emptySet()
+        val visible = if (uid != null && hidden.isNotEmpty()) {
+            merged.filter {
+                val k = conversationConvKey(uid, it)
+                k == null || k !in hidden
+            }
+        } else {
+            merged
+        }
+        val sorted = if (uid != null) sortConversationsByPins(uid, visible) else visible
+        _conversations.postValue(sorted)
+        _totalUnread.postValue(sorted.sumOf { it.unreadCount })
+    }
+
+    private fun conversationConvKey(ownerUserId: Long, item: ConversationItem): String? = when (item.convType) {
+        "P2P" -> item.peerUserId?.let { p -> ChatConvKeys.p2p(ownerUserId, p) }
+        "GROUP" -> item.groupId?.let { g -> ChatConvKeys.group(g) }
+        else -> null
+    }
+
+    private fun sortConversationsByPins(ownerUserId: Long, items: List<ConversationItem>): List<ConversationItem> {
+        val pinOrder = services.pinnedConversationStore.getOrderedPins(ownerUserId)
+        if (pinOrder.isEmpty()) return items
+        val pinnedItems = pinOrder.mapNotNull { pk ->
+            items.find { conversationConvKey(ownerUserId, it) == pk }
+        }
+        val pinnedSet = pinnedItems.mapNotNull { conversationConvKey(ownerUserId, it) }.toSet()
+        val rest = items.filter {
+            val k = conversationConvKey(ownerUserId, it)
+            k == null || k !in pinnedSet
+        }
+        return pinnedItems + rest
+    }
+
+    fun togglePinForConversation(convKey: String) {
+        val uid = selfUserId ?: return
+        services.pinnedConversationStore.togglePin(uid, convKey)
+        refreshDisplayedCounts()
+    }
+
+    fun hideConversationLocally(convKey: String) {
+        val uid = selfUserId ?: return
+        services.hiddenConversationStore.hide(uid, convKey)
+        refreshDisplayedCounts()
+    }
+
+    fun unhideConversationLocally(convKey: String) {
+        val uid = selfUserId ?: return
+        services.hiddenConversationStore.unhide(uid, convKey)
+        refreshDisplayedCounts()
+    }
+
+    /** 清除所有会话未读角标（本机），并取消系统通知。 */
+    fun markAllConversationsRead() {
+        unreadStore.clearAll()
+        ImMessageNotifier.cancelAllForApp(getApplication())
+        refreshDisplayedCounts()
     }
 
     private fun refreshDisplayedCounts() {
-        publishMerged(_conversations.value.orEmpty())
+        applyConversationTransforms()
     }
 
     fun refreshConversations() {
         services.imClient.requestConversations()
+    }
+
+    /** 当前账号下已隐藏会话，标题尽量来自最近一次服务端会话快照。 */
+    fun listHiddenConversationsForManage(): List<HiddenConversationRow> {
+        val uid = selfUserId ?: return emptyList()
+        val hidden = services.hiddenConversationStore.getHidden(uid)
+        if (hidden.isEmpty()) return emptyList()
+        val source = lastServerConversationSource
+        return hidden.map { h ->
+            val item = source.find { conversationConvKey(uid, it) == h }
+            HiddenConversationRow(h, hiddenConversationTitle(uid, item, h))
+        }.sortedBy { it.title }
+    }
+
+    private fun hiddenConversationTitle(selfId: Long, item: ConversationItem?, fallback: String): String {
+        if (item == null) return fallback
+        return when (item.convType) {
+            "P2P" -> {
+                val peer = item.peerUserId ?: 0L
+                if (peer == selfId) "与自己" else "单聊 · 用户 $peer"
+            }
+            "GROUP" -> item.groupName?.takeIf { it.isNotBlank() } ?: "群聊 ${item.groupId ?: ""}"
+            else -> fallback
+        }
     }
 }

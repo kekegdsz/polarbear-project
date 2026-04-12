@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <solid android:color="@color/wx_bubble_out" />
-    <corners android:radius="4dp" />
+    <stroke
+        android:width="0.5dp"
+        android:color="#26000000" />
+    <corners
+        android:bottomLeftRadius="18dp"
+        android:bottomRightRadius="4dp"
+        android:topLeftRadius="18dp"
+        android:topRightRadius="18dp" />
 </shape>

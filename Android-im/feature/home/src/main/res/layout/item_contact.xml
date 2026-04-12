@@ -3,10 +3,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/colorSurface"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
     android:gravity="center_vertical"
+    android:minHeight="64dp"
     android:orientation="horizontal"
-    android:paddingHorizontal="14dp"
-    android:paddingVertical="10dp">
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp">
 
     <FrameLayout
         android:layout_width="40dp"

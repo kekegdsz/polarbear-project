@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="wx_green">#07C160</color>
-    <color name="wx_bg">#EDEDED</color>
-    <color name="wx_nav">#EDEDED</color>
-    <color name="wx_bubble_out">#95EC69</color>
+    <!-- Brand & surfaces: cooler neutrals + clearer hierarchy than flat #EDEDED -->
+    <color name="wx_green">#0F9D74</color>
+    <color name="wx_green_bright">#12B37F</color>
+    <color name="wx_bg">#EDF0F5</color>
+    <color name="wx_nav">#FFFFFF</color>
+    <color name="wx_surface">#FFFFFF</color>
+    <color name="wx_composer_fill">#F1F4F8</color>
+    <!-- Bubbles: keep outgoing “IM green”, soften incoming card -->
+    <color name="wx_bubble_out">#8FE3A0</color>
     <color name="wx_bubble_in">#FFFFFF</color>
-    <color name="wx_line">#D9D9D9</color>
-    <color name="wx_sub">#888888</color>
-    <!-- 底部 Tab 未选中：接近微信的深灰图标 / 字 -->
-    <color name="wx_tab_icon_inactive">#8E8E93</color>
-    <color name="wx_tab_text_inactive">#8E8E93</color>
-    <color name="wx_unread">#FA5151</color>
+    <color name="wx_line">#E2E6EC</color>
+    <color name="wx_sub">#6B7280</color>
+    <color name="wx_tab_icon_inactive">#9CA3AF</color>
+    <color name="wx_tab_text_inactive">#9CA3AF</color>
+    <color name="wx_unread">#EF4444</color>
+    <color name="wx_banner_offline_bg">#FFF7ED</color>
+    <color name="wx_banner_offline_text">#9A3412</color>
+    <color name="wx_banner_connecting_bg">#EFF6FF</color>
+    <color name="wx_banner_connecting_text">#1D4ED8</color>
 </resources>

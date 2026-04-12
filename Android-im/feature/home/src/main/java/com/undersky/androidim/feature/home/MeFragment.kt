@@ -40,6 +40,8 @@ class MeFragment : Fragment() {
                 ?: session.username?.takeIf { it.isNotBlank() }
                 ?: "用户"
             binding.textUsername.text = nick
+            binding.avatarLetter.text =
+                nick.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
             val sub = buildString {
                 session.username?.takeIf { it.isNotBlank() }?.let { append("登录账号：$it\n") }
                 append("ID：${session.userId}")

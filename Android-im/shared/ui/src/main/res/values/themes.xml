@@ -4,7 +4,11 @@
         <item name="colorPrimary">@color/wx_green</item>
         <item name="colorOnPrimary">@android:color/white</item>
         <item name="android:colorBackground">@color/wx_bg</item>
-        <item name="colorSurface">@color/wx_bg</item>
+        <item name="colorSurface">@color/wx_surface</item>
+        <item name="colorSurfaceVariant">@color/wx_composer_fill</item>
+        <item name="colorOnSurfaceVariant">@color/wx_sub</item>
+        <item name="colorOutline">@color/wx_line</item>
+        <item name="colorOutlineVariant">#E8EBF0</item>
         <item name="android:statusBarColor">@color/wx_nav</item>
         <item name="android:navigationBarColor">@color/wx_bg</item>
         <item name="android:windowLightStatusBar">true</item>

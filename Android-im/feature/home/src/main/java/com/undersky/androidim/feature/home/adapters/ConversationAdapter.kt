@@ -3,6 +3,7 @@ package com.undersky.androidim.feature.home.adapters
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -11,16 +12,21 @@ import com.undersky.business.user.DirectoryUserDto
 import com.undersky.business.user.UserSession
 import com.undersky.im.core.api.ConversationItem
 import com.undersky.im.core.api.chatMessagePreviewLabel
+import com.undersky.im.core.local.ChatConvKeys
+import com.undersky.androidim.shared.ui.R as UiR
 import com.undersky.androidim.shared.ui.bindPresenceLabel
 
 class ConversationAdapter(
     private var session: UserSession,
-    private val onOpen: (ConversationItem) -> Unit
+    private val onOpen: (ConversationItem) -> Unit,
+    private val onLongPress: (ConversationItem) -> Unit
 ) : ListAdapter<ConversationItem, ConversationAdapter.Vh>(Diff) {
 
     private var directoryById: Map<Long, DirectoryUserDto> = emptyMap()
     /** 与 MainTabsViewModel.userPresence 同步（仅实时 IM；缺省视为离线，不用通讯录缓存 online） */
     private var imPresence: Map<Long, Boolean> = emptyMap()
+    private var draftByConvKey: Map<String, String> = emptyMap()
+    private var pinnedConvKeys: Set<String> = emptySet()
 
     fun updateSession(s: UserSession) {
         session = s
@@ -36,13 +42,34 @@ class ConversationAdapter(
         notifyDataSetChanged()
     }
 
+    fun setDraftByConvKey(map: Map<String, String>) {
+        if (map == draftByConvKey) return
+        draftByConvKey = map
+        notifyDataSetChanged()
+    }
+
+    fun setPinnedConvKeys(keys: Set<String>) {
+        if (keys == pinnedConvKeys) return
+        pinnedConvKeys = keys
+        notifyDataSetChanged()
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Vh {
         val binding = ItemConversationBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return Vh(binding)
     }
 
     override fun onBindViewHolder(holder: Vh, position: Int) {
-        holder.bind(getItem(position), session, directoryById, imPresence, onOpen)
+        holder.bind(
+            getItem(position),
+            session,
+            directoryById,
+            imPresence,
+            draftByConvKey,
+            pinnedConvKeys,
+            onOpen,
+            onLongPress
+        )
     }
 
     class Vh(private val binding: ItemConversationBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -51,8 +78,16 @@ class ConversationAdapter(
             session: UserSession,
             directoryById: Map<Long, DirectoryUserDto>,
             imPresence: Map<Long, Boolean>,
-            onOpen: (ConversationItem) -> Unit
+            draftByConvKey: Map<String, String>,
+            pinnedConvKeys: Set<String>,
+            onOpen: (ConversationItem) -> Unit,
+            onLongPress: (ConversationItem) -> Unit
         ) {
+            val convKey: String? = when (item.convType) {
+                "P2P" -> item.peerUserId?.let { p -> ChatConvKeys.p2p(session.userId, p) }
+                "GROUP" -> item.groupId?.let { g -> ChatConvKeys.group(g) }
+                else -> null
+            }
             val title = when (item.convType) {
                 "P2P" -> {
                     val peer = item.peerUserId ?: 0L
@@ -71,15 +106,24 @@ class ConversationAdapter(
                     ?: "群聊 ${item.groupId ?: ""}"
                 else -> "会话"
             }
-            binding.avatarLetter.text = title.take(1)
-            binding.textTitle.text = title
-            binding.textPreview.text = chatMessagePreviewLabel(item.lastMessage.body)
+            val pinMark = if (convKey != null && convKey in pinnedConvKeys) "📌 " else ""
+            binding.avatarLetter.text = title.trim().take(1).ifEmpty { "?" }
+            binding.textTitle.text = pinMark + title
+            val draft = convKey?.let { draftByConvKey[it] }?.trim().orEmpty()
+            val ctx = binding.root.context
+            if (draft.isNotEmpty()) {
+                val oneLine = if (draft.length > 40) draft.take(40) + "…" else draft
+                binding.textPreview.text = "[草稿] $oneLine"
+                binding.textPreview.setTextColor(ContextCompat.getColor(ctx, UiR.color.wx_green))
+            } else {
+                binding.textPreview.text = chatMessagePreviewLabel(item.lastMessage.body)
+                binding.textPreview.setTextColor(ContextCompat.getColor(ctx, UiR.color.wx_sub))
+            }
             binding.textTime.text = item.lastMessage.createdAt?.takeLast(8).orEmpty()
             val p2pPeer = item.convType == "P2P" && (item.peerUserId ?: 0L) > 0L &&
                 (item.peerUserId ?: 0L) != session.userId
             if (p2pPeer) {
                 val peerId = item.peerUserId!!
-                // 仅用 IM 推送的 userPresence；不要用通讯录里可能过期的 online（重连清空 map 后快照只含在线用户）
                 val online = imPresence[peerId]
                 binding.textPresence.bindPresenceLabel(online, show = true)
             } else {
@@ -93,6 +137,10 @@ class ConversationAdapter(
                 binding.badgeUnread.text = if (u > 99) "99+" else u.toString()
             }
             binding.root.setOnClickListener { onOpen(item) }
+            binding.root.setOnLongClickListener {
+                onLongPress(item)
+                true
+            }
         }
     }
 

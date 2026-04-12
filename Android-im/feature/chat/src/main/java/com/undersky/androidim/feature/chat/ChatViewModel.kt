@@ -2,7 +2,9 @@ package com.undersky.androidim.feature.chat
 
 import android.app.Application
 import android.media.MediaPlayer
+import android.media.PlaybackParams
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -19,6 +21,7 @@ import com.undersky.im.core.CHAT_PAGE_SIZE
 import com.undersky.im.core.CHAT_SYNC_NEWER_LIMIT
 import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.GroupMemberRow
+import com.undersky.im.core.api.chatMessagePreviewLabel
 import com.undersky.im.core.api.ImEvent
 import com.undersky.im.core.api.mediaUrlFromImJson
 import com.undersky.im.core.api.resolveImAttachmentUrl
@@ -29,6 +32,7 @@ import com.undersky.im.core.local.UserProfileLocalStore
 import com.undersky.im.core.local.isStale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -72,9 +76,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _groupDetail = MutableLiveData<GroupDetailUi?>(null)
     val groupDetail: LiveData<GroupDetailUi?> = _groupDetail
 
+    /** 引用回复草稿：长按选「回复」后带入下一条发送的文本 JSON。 */
+    private val _replyDraft = MutableLiveData<ChatMessage?>(null)
+    val replyDraft: LiveData<ChatMessage?> = _replyDraft
+
+    fun setReplyDraft(message: ChatMessage?) {
+        _replyDraft.value = message
+    }
+
+    /** 列表内短暂高亮某条消息（如点击引用定位后）。 */
+    private val _highlightMessageId = MutableLiveData<Long?>(null)
+    val highlightMessageId: LiveData<Long?> = _highlightMessageId
+    private var highlightClearJob: Job? = null
+
+    fun flashHighlightMessage(msgId: Long) {
+        highlightClearJob?.cancel()
+        _highlightMessageId.value = msgId
+        highlightClearJob = viewModelScope.launch {
+            delay(1200L)
+            if (_highlightMessageId.value == msgId) {
+                _highlightMessageId.value = null
+            }
+        }
+    }
+
+    private val _voicePlaybackSpeed = MutableLiveData(1f)
+    val voicePlaybackSpeed: LiveData<Float> = _voicePlaybackSpeed
+
+    fun cycleVoicePlaybackSpeed() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            toast("语音倍速需 Android 6+")
+            return
+        }
+        val next = when (val v = _voicePlaybackSpeed.value ?: 1f) {
+            1f -> 1.5f
+            1.5f -> 2f
+            else -> 1f
+        }
+        _voicePlaybackSpeed.value = next
+        applyPlaybackSpeedToPlayer(next)
+        val label = when (next) {
+            1f -> "1"
+            1.5f -> "1.5"
+            else -> "2"
+        }
+        toast("语音倍速 ${label}x")
+    }
+
+    private fun applyPlaybackSpeedToPlayer(speed: Float) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val p = voicePlayer ?: return
+        try {
+            p.playbackParams = p.playbackParams.setSpeed(speed)
+        } catch (_: Exception) {
+        }
+    }
+
     /** 当前正在播放的语音 URL（用于气泡高亮；同一条再点即停止） */
     private val _playingVoiceUrl = MutableLiveData<String?>(null)
     val playingVoiceUrl: LiveData<String?> = _playingVoiceUrl
+
+    /** 发送中：禁用发送键并显示进度；收到自己消息回显或超时后结束。 */
+    private val _composerSending = MutableLiveData(false)
+    val composerSending: LiveData<Boolean> = _composerSending
+    private var composerSendingClearJob: Job? = null
 
     private var eventsJob: Job? = null
     private var session: UserSession? = null
@@ -143,6 +208,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         titleFallbackArg: String
     ) {
         stopVoicePlayback()
+        clearComposerSendingIndicator()
+        highlightClearJob?.cancel()
+        highlightClearJob = null
+        _highlightMessageId.value = null
+        _replyDraft.value = null
+        _voicePlaybackSpeed.value = 1f
         this.session = session
         this.peerUserId = peerUserIdArg
         this.groupId = groupIdArg
@@ -330,8 +401,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) {
                         if (filtered.isNotEmpty()) {
                             val cur = currentMessages()
-                            val combined = (cur + filtered).distinctBy { it.msgId }.sortedBy { it.msgId }
-                            postMessages(combined, ChatScroll.ToBottom)
+                            postMessages(mergeMessagesSortedUniqueByMsgId(cur, filtered), ChatScroll.ToBottom)
                             prefetchSenderProfiles(filtered)
                         }
                     }
@@ -358,8 +428,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             withContext(Dispatchers.Main) {
                                 val cur = currentMessages()
                                 val older = filtered.sortedBy { it.msgId }
-                                val combined = (older + cur).distinctBy { it.msgId }.sortedBy { it.msgId }
-                                postMessages(combined, ChatScroll.KeepScroll)
+                                postMessages(mergeMessagesSortedUniqueByMsgId(older, cur), ChatScroll.KeepScroll)
                                 prefetchSenderProfiles(older)
                                 loadingOlder = false
                             }
@@ -375,13 +444,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             localStore.upsert(convKey, listOf(enriched))
             withContext(Dispatchers.Main) {
+                if (enriched.fromUserId == session?.userId) {
+                    clearComposerSendingIndicator()
+                }
                 val cur = currentMessages()
                 if (cur.none { it.msgId == enriched.msgId }) {
-                    val next = (cur + enriched).sortedBy { it.msgId }
-                    postMessages(next, ChatScroll.ToBottom)
-                    prefetchSenderProfiles(next)
+                    postMessages(mergeMessagesSortedUniqueByMsgId(cur, listOf(enriched)), ChatScroll.ToBottom)
+                    prefetchSenderProfiles(listOf(enriched))
                 }
             }
+        }
+    }
+
+    private fun startComposerSendingIndicator() {
+        composerSendingClearJob?.cancel()
+        _composerSending.value = true
+        composerSendingClearJob = viewModelScope.launch {
+            delay(12_000L)
+            _composerSending.value = false
+        }
+    }
+
+    private fun clearComposerSendingIndicator() {
+        composerSendingClearJob?.cancel()
+        composerSendingClearJob = null
+        if (_composerSending.value == true) {
+            _composerSending.value = false
         }
     }
 
@@ -395,8 +483,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val localOlder = localStore.loadOlderPage(convKey, oldestId, CHAT_PAGE_SIZE)
             if (localOlder.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
-                    val combined = (localOlder + cur).distinctBy { it.msgId }.sortedBy { it.msgId }
-                    postMessages(combined, ChatScroll.KeepScroll)
+                    postMessages(mergeMessagesSortedUniqueByMsgId(localOlder, cur), ChatScroll.KeepScroll)
                     loadingOlder = false
                 }
                 return@launch
@@ -427,8 +514,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun currentMessages(): List<ChatMessage> =
         _messagesState.value?.messages.orEmpty()
 
+    /** 多条来源合并：按 msgId 去重（保留先出现项）、按 msgId 升序，供历史/实时/分页共用。 */
+    private fun mergeMessagesSortedUniqueByMsgId(vararg chunks: List<ChatMessage>): List<ChatMessage> =
+        chunks.asSequence()
+            .flatten()
+            .distinctBy { it.msgId }
+            .sortedBy { it.msgId }
+            .toList()
+
     private fun postMessages(list: List<ChatMessage>, scroll: ChatScroll) {
-        _messagesState.value = ChatMessagesState(list, scroll)
+        // 与 UI 层一致：始终以 msgId 升序为权威顺序，防止任一路径漏排序导致气泡乱序
+        val sorted = if (list.size <= 1) list else list.sortedBy { it.msgId }
+        _messagesState.value = ChatMessagesState(sorted, scroll)
     }
 
     private fun mergeDisplayName(userId: Long, nickname: String?, username: String?) {
@@ -476,10 +573,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         session ?: return
         val t = text.trim()
         if (t.isEmpty()) return
+        val reply = _replyDraft.value
+        _replyDraft.value = null
+        val body = if (reply != null) {
+            val preview = chatMessagePreviewLabel(reply.body).take(120)
+            val fromLabel = _displayNames.value?.get(reply.fromUserId)?.takeIf { it.isNotBlank() }
+                ?: "用户 ${reply.fromUserId}"
+            buildTextJsonWithReply(t, reply.msgId, preview, fromLabel)
+        } else {
+            buildTextJson(t)
+        }
+        startComposerSendingIndicator()
         if (peerUserId != -1L) {
-            services.imClient.sendPrivate(peerUserId, t)
+            services.imClient.sendPrivate(peerUserId, body)
         } else if (groupId != -1L) {
-            services.imClient.sendGroup(groupId, t)
+            services.imClient.sendGroup(groupId, body)
+        }
+    }
+
+    /** 删除本机 Room 中该会话消息并重新请求服务端历史（仅本设备）。 */
+    fun clearLocalHistory() {
+        val ck = convKey
+        if (ck.isEmpty()) return
+        session ?: return
+        val isP2P = peerUserId != -1L
+        val peer = peerUserId
+        val grp = groupId
+        stopVoicePlayback()
+        viewModelScope.launch(Dispatchers.IO) {
+            localStore.clearConversation(ck)
+            withContext(Dispatchers.Main) {
+                synchronized(pendingSelfMediaLocalByRemoteKey) { pendingSelfMediaLocalByRemoteKey.clear() }
+                loadingOlder = false
+                noMoreOlderHistory = false
+                pendingHistory = PendingHistory.InitialFromServer
+                postMessages(emptyList(), ChatScroll.ToBottom)
+            }
+            withContext(Dispatchers.Main) {
+                if (isP2P && peer > 0) {
+                    services.imClient.requestHistoryP2P(peer, null, null, CHAT_PAGE_SIZE)
+                } else if (grp > 0) {
+                    services.imClient.requestHistoryGroup(grp, null, null, CHAT_PAGE_SIZE)
+                }
+            }
         }
     }
 
@@ -501,6 +637,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (e.isNotBlank()) registerPendingSelfMedia(e, localMediaFile)
             }
         }
+        startComposerSendingIndicator()
         if (peerUserId != -1L) {
             services.imClient.sendPrivate(peerUserId, t)
         } else if (groupId != -1L) {
@@ -542,6 +679,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) {
                         voicePlayer = p
                         _playingVoiceUrl.value = url
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            try {
+                                val sp = _voicePlaybackSpeed.value ?: 1f
+                                p.playbackParams = PlaybackParams().setSpeed(sp)
+                            } catch (_: Exception) {
+                            }
+                        }
                         p.setOnCompletionListener {
                             stopVoicePlayback()
                         }

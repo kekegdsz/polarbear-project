@@ -5,6 +5,15 @@ import com.undersky.im.core.api.mediaUrlFromImJson
 import com.undersky.im.core.api.unwrapImMessageBody
 import org.json.JSONObject
 
+/** 引用条：与 body JSON 中 `reply` / `r` 对象对应（服务端透传即可）。 */
+data class ReplyQuote(
+    val refMsgId: Long,
+    val preview: String,
+    val fromLabel: String?
+)
+
+data class ParsedBubble(val content: BubbleContent, val reply: ReplyQuote?)
+
 /** 聊天气泡展示用（与 JSON k 字段对应） */
 sealed class BubbleContent {
     data class PlainText(val text: String) : BubbleContent()
@@ -14,11 +23,14 @@ sealed class BubbleContent {
     data class VoiceMsg(val url: String, val durationMs: Long) : BubbleContent()
 }
 
-fun parseBubbleBody(body: String): BubbleContent {
+fun parseBubbleBody(body: String): BubbleContent = parseBubble(body).content
+
+fun parseBubble(body: String): ParsedBubble {
     val t = unwrapImMessageBody(body)
-    if (!t.startsWith("{")) return BubbleContent.PlainText(t)
+    if (!t.startsWith("{")) return ParsedBubble(BubbleContent.PlainText(t), null)
     return try {
         val o = JSONObject(t)
+        val reply = parseReplyObject(o)
         val mediaUrl = mediaUrlFromImJson(o)
         val k = o.optString("k").trim()
         val effectiveKind = when {
@@ -30,7 +42,7 @@ fun parseBubbleBody(body: String): BubbleContent {
             mediaUrl.isNotEmpty() && o.optString("m").lowercase().startsWith("image/") -> ImPayloadKind.IMG
             else -> ""
         }
-        when (effectiveKind) {
+        val content = when (effectiveKind) {
             ImPayloadKind.TEXT -> BubbleContent.PlainText(o.optString("t", ""))
             ImPayloadKind.IMG, "image" -> BubbleContent.ImageMsg(
                 mediaUrl,
@@ -60,13 +72,41 @@ fun parseBubbleBody(body: String): BubbleContent {
             )
             else -> BubbleContent.PlainText(t)
         }
+        ParsedBubble(content, reply)
     } catch (_: Exception) {
-        BubbleContent.PlainText(t)
+        ParsedBubble(BubbleContent.PlainText(t), null)
     }
+}
+
+private fun parseReplyObject(root: JSONObject): ReplyQuote? {
+    val r = root.optJSONObject("reply") ?: root.optJSONObject("r") ?: return null
+    val id = when {
+        r.has("id") -> r.optLong("id", 0L)
+        r.has("mid") -> r.optLong("mid", 0L)
+        else -> 0L
+    }
+    if (id <= 0L) return null
+    val preview = r.optString("p").ifBlank { r.optString("preview", "") }
+    val from = r.optString("n").takeIf { it.isNotBlank() }
+        ?: r.optString("from").takeIf { it.isNotBlank() }
+    return ReplyQuote(id, preview, from)
 }
 
 internal fun buildTextJson(text: String): String =
     JSONObject().put("k", ImPayloadKind.TEXT).put("t", text).toString()
+
+internal fun buildTextJsonWithReply(
+    text: String,
+    refMsgId: Long,
+    refPreview: String,
+    refFromLabel: String?
+): String {
+    val o = JSONObject().put("k", ImPayloadKind.TEXT).put("t", text)
+    val r = JSONObject().put("id", refMsgId).put("p", refPreview)
+    if (!refFromLabel.isNullOrBlank()) r.put("n", refFromLabel)
+    o.put("reply", r)
+    return o.toString()
+}
 
 internal fun buildImageJson(url: String, mime: String, w: Int?, h: Int?): String {
     val o = JSONObject().put("k", ImPayloadKind.IMG).put("u", url).put("m", mime)

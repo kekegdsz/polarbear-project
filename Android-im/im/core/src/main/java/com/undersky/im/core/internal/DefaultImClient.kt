@@ -4,6 +4,7 @@ import com.undersky.im.core.api.ChatMessage
 import com.undersky.im.core.api.ConversationItem
 import com.undersky.im.core.api.GroupMemberRow
 import com.undersky.im.core.api.ImClient
+import com.undersky.im.core.api.ImConnectionState
 import com.undersky.im.core.api.ImEvent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -15,7 +16,10 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -40,6 +44,9 @@ internal class DefaultImClient(
     )
     override val events: Flow<ImEvent> = _events.asSharedFlow()
 
+    private val _connectionState = MutableStateFlow(ImConnectionState.Disconnected)
+    override val connectionState: StateFlow<ImConnectionState> = _connectionState.asStateFlow()
+
     @Volatile
     private var webSocket: WebSocket? = null
 
@@ -54,6 +61,7 @@ internal class DefaultImClient(
     override fun connect(userId: Long) {
         authUserId = userId
         reconnectJob?.cancel()
+        _connectionState.value = ImConnectionState.Connecting
         scope.launch(Dispatchers.IO) {
             synchronized(this@DefaultImClient) {
                 webSocket?.cancel()
@@ -76,6 +84,7 @@ internal class DefaultImClient(
             webSocket?.close(1000, "logout")
             webSocket = null
         }
+        _connectionState.value = ImConnectionState.Disconnected
     }
 
     override fun sendRaw(json: String) {
@@ -194,7 +203,10 @@ internal class DefaultImClient(
 
     private fun listener(expectedUserId: Long) = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            scope.launch { _events.emit(ImEvent.SocketOpen) }
+            scope.launch {
+                _connectionState.value = ImConnectionState.Connected
+                _events.emit(ImEvent.SocketOpen)
+            }
             sendAuth(expectedUserId)
         }
 
@@ -208,6 +220,7 @@ internal class DefaultImClient(
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             scope.launch {
+                _connectionState.value = ImConnectionState.Disconnected
                 _events.emit(ImEvent.SocketClosed)
                 scheduleReconnectIfNeeded()
             }
@@ -216,6 +229,7 @@ internal class DefaultImClient(
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             scope.launch {
                 _events.emit(ImEvent.Error(t.message ?: "连接失败"))
+                _connectionState.value = ImConnectionState.Disconnected
                 _events.emit(ImEvent.SocketClosed)
                 scheduleReconnectIfNeeded()
             }
@@ -228,6 +242,7 @@ internal class DefaultImClient(
         reconnectJob = scope.launch {
             delay(2500)
             if (authUserId == uid) {
+                _connectionState.value = ImConnectionState.Connecting
                 withContext(Dispatchers.IO) {
                     synchronized(this@DefaultImClient) {
                         webSocket?.cancel()

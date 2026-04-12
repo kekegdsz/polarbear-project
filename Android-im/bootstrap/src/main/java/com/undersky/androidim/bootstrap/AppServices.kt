@@ -17,7 +17,10 @@ import com.undersky.business.user.UserDirectoryCacheStore
 import com.undersky.business.user.UserDirectoryRepository
 import com.undersky.im.core.ImCore
 import com.undersky.im.core.api.ImClient
+import com.undersky.im.core.local.ChatDraftStore
 import com.undersky.im.core.local.ConversationLocalStore
+import com.undersky.im.core.local.HiddenConversationStore
+import com.undersky.im.core.local.PinnedConversationStore
 import com.undersky.im.core.local.UnreadCountStore
 import com.undersky.im.core.local.UserProfileLocalStore
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +39,9 @@ class AppServices private constructor(
     val applicationScope: CoroutineScope,
     val sessionStore: SessionStore,
     val unreadCountStore: UnreadCountStore,
+    val chatDraftStore: ChatDraftStore,
+    val pinnedConversationStore: PinnedConversationStore,
+    val hiddenConversationStore: HiddenConversationStore,
     val conversationLocalStore: ConversationLocalStore,
     val contactStore: ContactStore,
     val userDirectoryCacheStore: UserDirectoryCacheStore,
@@ -79,6 +85,9 @@ class AppServices private constructor(
 
             val sessionStore = SessionStore(application)
             val unreadCountStore = UnreadCountStore(application)
+            val chatDraftStore = ChatDraftStore(application)
+            val pinnedConversationStore = PinnedConversationStore(application)
+            val hiddenConversationStore = HiddenConversationStore(application)
             val conversationLocalStore = ConversationLocalStore(application)
             val contactStore = ContactStore(application)
             val userDirectoryCacheStore = UserDirectoryCacheStore(application)
@@ -135,6 +144,9 @@ class AppServices private constructor(
                 applicationScope = applicationScope,
                 sessionStore = sessionStore,
                 unreadCountStore = unreadCountStore,
+                chatDraftStore = chatDraftStore,
+                pinnedConversationStore = pinnedConversationStore,
+                hiddenConversationStore = hiddenConversationStore,
                 conversationLocalStore = conversationLocalStore,
                 contactStore = contactStore,
                 userDirectoryCacheStore = userDirectoryCacheStore,

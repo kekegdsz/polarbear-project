@@ -33,4 +33,8 @@ class ChatMessageLocalStore(context: Context) {
 
     /** 本地该会话已持久化的最大服务端 msgId，用于增量同步 */
     suspend fun maxMsgId(convKey: String): Long? = dao.maxMsgId(convKey)
+
+    suspend fun clearConversation(convKey: String) {
+        dao.deleteByConvKey(convKey)
+    }
 }

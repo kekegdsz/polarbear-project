@@ -12,7 +12,7 @@
     <!-- 底部 Tab：M2 扁平样式（无 M3 选中胶囊），接近微信 -->
     <style name="Widget.AndroidIm.BottomNavigation" parent="Widget.MaterialComponents.BottomNavigationView">
         <item name="android:background">@color/wx_nav</item>
-        <item name="elevation">0dp</item>
+        <item name="elevation">6dp</item>
         <item name="itemIconSize">26dp</item>
         <item name="itemIconTint">@color/wx_bottom_nav_icon</item>
         <item name="itemTextColor">@color/wx_bottom_nav_text</item>

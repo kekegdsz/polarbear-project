@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_chat_search"
+        android:icon="@drawable/ic_search_24"
+        android:title="查找聊天内容"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_chat_clear_local"
+        android:title="清空本地聊天记录"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_group_info"
+        android:title="群资料"
+        android:visible="false" />
+</menu>

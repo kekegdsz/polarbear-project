@@ -2,6 +2,7 @@ package com.undersky.im.core.api
 
 import com.undersky.im.core.CHAT_PAGE_SIZE
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * IM 传输层对外接口（无 UI）。由宿主通过 [com.undersky.im.core.ImCore] 创建实现。
@@ -9,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 interface ImClient {
 
     val events: Flow<ImEvent>
+
+    /** 当前传输层连接状态（与 [events] 中的 [ImEvent.SocketOpen] / [ImEvent.SocketClosed] 同源）。 */
+    val connectionState: StateFlow<ImConnectionState>
 
     fun connect(userId: Long)
 

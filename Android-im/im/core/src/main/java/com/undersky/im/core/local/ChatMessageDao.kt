@@ -39,4 +39,7 @@ interface ChatMessageDao {
 
     @Query("SELECT * FROM chat_messages WHERE convKey = :convKey AND msgId = :msgId LIMIT 1")
     suspend fun findByConvAndMsgId(convKey: String, msgId: Long): ChatMessageEntity?
+
+    @Query("DELETE FROM chat_messages WHERE convKey = :convKey")
+    suspend fun deleteByConvKey(convKey: String)
 }
