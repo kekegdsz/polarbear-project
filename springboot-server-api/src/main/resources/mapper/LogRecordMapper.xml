@@ -7,25 +7,26 @@
         <id column="id" property="id"/>
         <result column="app_id" property="appId"/>
         <result column="employee_no" property="employeeNo"/>
+        <result column="duration_ms" property="durationMs"/>
         <result column="content" property="content"/>
         <result column="ack" property="ack"/>
         <result column="created_at" property="createdAt"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, app_id, employee_no, content, ack, created_at
+        id, app_id, employee_no, duration_ms, content, ack, created_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logs (app_id, employee_no, content, ack, created_at)
-        VALUES (#{appId}, #{employeeNo}, #{content}, #{ack}, #{createdAt})
+        INSERT INTO logs (app_id, employee_no, duration_ms, content, ack, created_at)
+        VALUES (#{appId}, #{employeeNo}, #{durationMs}, #{content}, #{ack}, #{createdAt})
     </insert>
 
     <insert id="insertBatch">
-        INSERT INTO logs (app_id, employee_no, content, ack, created_at)
+        INSERT INTO logs (app_id, employee_no, duration_ms, content, ack, created_at)
         VALUES
         <foreach collection="list" item="item" separator=",">
-            (#{item.appId}, #{item.employeeNo}, #{item.content}, #{item.ack}, #{item.createdAt})
+            (#{item.appId}, #{item.employeeNo}, #{item.durationMs}, #{item.content}, #{item.ack}, #{item.createdAt})
         </foreach>
     </insert>
 
@@ -50,6 +51,15 @@
             <if test="employeeNo != null and employeeNo != ''">
                 AND employee_no = #{employeeNo}
             </if>
+            <if test="durationGt != null and durationGt &gt;= 0">
+                AND duration_ms &gt;= #{durationGt}
+            </if>
+            <if test="createdStart != null">
+                AND created_at &gt;= #{createdStart}
+            </if>
+            <if test="createdEnd != null">
+                AND created_at &lt; #{createdEnd}
+            </if>
             <if test="ack != null">
                 AND ack = #{ack}
             </if>
@@ -67,6 +77,15 @@
             </if>
             <if test="employeeNo != null and employeeNo != ''">
                 AND employee_no = #{employeeNo}
+            </if>
+            <if test="durationGt != null and durationGt &gt;= 0">
+                AND duration_ms &gt;= #{durationGt}
+            </if>
+            <if test="createdStart != null">
+                AND created_at &gt;= #{createdStart}
+            </if>
+            <if test="createdEnd != null">
+                AND created_at &lt; #{createdEnd}
             </if>
             <if test="ack != null">
                 AND ack = #{ack}

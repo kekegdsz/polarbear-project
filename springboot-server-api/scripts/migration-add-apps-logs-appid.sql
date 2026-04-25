@@ -14,5 +14,8 @@ ALTER TABLE logs
 ALTER TABLE logs
     ADD COLUMN employee_no VARCHAR(64) NULL;
 
-CREATE INDEX idx_logs_app_emp_ack_created ON logs (app_id, employee_no, ack, created_at);
+ALTER TABLE logs
+    ADD COLUMN duration_ms BIGINT NULL;
+
+CREATE INDEX idx_logs_app_emp_ack_duration_created ON logs (app_id, employee_no, ack, duration_ms, created_at);
 

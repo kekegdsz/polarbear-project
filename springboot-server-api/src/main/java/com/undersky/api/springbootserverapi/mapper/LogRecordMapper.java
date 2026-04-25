@@ -20,12 +20,18 @@ public interface LogRecordMapper {
 
     List<LogRecord> selectList(@Param("appId") String appId,
                                @Param("employeeNo") String employeeNo,
+                               @Param("durationGt") Long durationGt,
+                               @Param("createdStart") LocalDateTime createdStart,
+                               @Param("createdEnd") LocalDateTime createdEnd,
                                @Param("ack") Integer ack,
                                @Param("offset") int offset,
                                @Param("size") int size);
 
     long countByFilter(@Param("appId") String appId,
                        @Param("employeeNo") String employeeNo,
+                       @Param("durationGt") Long durationGt,
+                       @Param("createdStart") LocalDateTime createdStart,
+                       @Param("createdEnd") LocalDateTime createdEnd,
                        @Param("ack") Integer ack);
 
     int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);

@@ -5,11 +5,16 @@ import com.undersky.api.springbootserverapi.model.dto.PageResult;
 import com.undersky.api.springbootserverapi.model.dto.Result;
 import com.undersky.api.springbootserverapi.model.entity.LogRecord;
 import com.undersky.api.springbootserverapi.service.LogIngestService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 管理后台 - 日志管理
@@ -17,6 +22,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/logs")
 public class AdminLogController {
+    private static final Pattern HTTP_LATENCY_PATTERN = Pattern.compile("\"httpLatency\"\\s*:\\s*(\\d+)");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final LogRecordMapper logRecordMapper;
     private final LogIngestService logIngestService;
@@ -44,6 +51,7 @@ public class AdminLogController {
             record.setEmployeeNo(req.getEmployeeNo().trim());
         }
         record.setContent(rawContent.trim());
+        record.setDurationMs(extractDurationMs(rawContent));
         record.setAck(0);
         record.setCreatedAt(LocalDateTime.now());
         boolean accepted = logIngestService.ingest(record);
@@ -82,6 +90,7 @@ public class AdminLogController {
                 r.setEmployeeNo(employeeNo);
             }
             r.setContent(content.trim());
+            r.setDurationMs(extractDurationMs(content));
             r.setAck(0);
             r.setCreatedAt(now);
             records.add(r);
@@ -138,9 +147,66 @@ public class AdminLogController {
         int offset = (page - 1) * size;
         String appId = req.getAppId().trim();
         String employeeNo = req.getEmployeeNo() == null ? null : req.getEmployeeNo().trim();
-        long total = logRecordMapper.countByFilter(appId, employeeNo, ack);
-        List<LogRecord> list = logRecordMapper.selectList(appId, employeeNo, ack, offset, size);
+        Long durationGt = req.getDurationGt() == null || req.getDurationGt() < 0 ? null : req.getDurationGt();
+        LocalDateTime createdStart = req.getCreatedStartMs() == null ? null :
+                LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(req.getCreatedStartMs()), ZoneId.systemDefault());
+        LocalDateTime createdEnd = req.getCreatedEndMs() == null ? null :
+                LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(req.getCreatedEndMs()), ZoneId.systemDefault());
+        long total = logRecordMapper.countByFilter(appId, employeeNo, durationGt, createdStart, createdEnd, ack);
+        List<LogRecord> list = logRecordMapper.selectList(appId, employeeNo, durationGt, createdStart, createdEnd, ack, offset, size);
         return Result.success(new PageResult<>(total, list));
+    }
+
+    private Long extractDurationMs(String rawContent) {
+        if (rawContent == null || rawContent.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(rawContent);
+            Long fromCusp = extractHttpLatencyFromNode(node.get("cusp"));
+            if (fromCusp != null) {
+                return fromCusp;
+            }
+            Long fromRoot = extractHttpLatencyFromNode(node);
+            if (fromRoot != null) {
+                return fromRoot;
+            }
+        } catch (Exception ignored) {
+            // fallback to regex below
+        }
+        Matcher matcher = HTTP_LATENCY_PATTERN.matcher(rawContent);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(matcher.group(1));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Long extractHttpLatencyFromNode(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        try {
+            if (node.isTextual()) {
+                JsonNode cuspNode = OBJECT_MAPPER.readTree(node.asText());
+                return extractHttpLatencyFromNode(cuspNode);
+            }
+            JsonNode latencyNode = node.get("httpLatency");
+            if (latencyNode == null || latencyNode.isNull()) {
+                return null;
+            }
+            if (latencyNode.isNumber()) {
+                return latencyNode.asLong();
+            }
+            if (latencyNode.isTextual()) {
+                return Long.parseLong(latencyNode.asText().trim());
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     public static class UnreadListRequest {
@@ -148,6 +214,9 @@ public class AdminLogController {
         private String employeeNo;
         private Boolean unreadOnly;
         private Integer ack;
+        private Long durationGt;
+        private Long createdStartMs;
+        private Long createdEndMs;
         private Integer page;
         private Integer size;
 
@@ -175,6 +244,14 @@ public class AdminLogController {
             this.ack = ack;
         }
 
+        public Long getDurationGt() {
+            return durationGt;
+        }
+
+        public void setDurationGt(Long durationGt) {
+            this.durationGt = durationGt;
+        }
+
         public String getEmployeeNo() {
             return employeeNo;
         }
@@ -197,6 +274,22 @@ public class AdminLogController {
 
         public void setSize(Integer size) {
             this.size = size;
+        }
+
+        public Long getCreatedStartMs() {
+            return createdStartMs;
+        }
+
+        public void setCreatedStartMs(Long createdStartMs) {
+            this.createdStartMs = createdStartMs;
+        }
+
+        public Long getCreatedEndMs() {
+            return createdEndMs;
+        }
+
+        public void setCreatedEndMs(Long createdEndMs) {
+            this.createdEndMs = createdEndMs;
         }
     }
 

@@ -44,8 +44,24 @@
           <option value="read">已读</option>
         </select>
       </div>
+      <div class="apps-row employee-row">
+        <label class="apps-label">httpLatency</label>
+        <input
+          v-model.trim="durationGt"
+          class="employee-input"
+          placeholder="例如 2000（筛选 httpLatency >= 2000ms）"
+          @keyup.enter="onFilterChange"
+        />
+        <button class="btn btn-ghost" @click="onFilterChange" :disabled="loading">按 httpLatency 筛选</button>
+      </div>
+      <div class="apps-row employee-row">
+        <label class="apps-label">时间</label>
+        <input v-model="startDate" type="date" class="employee-input date-input" @change="onFilterChange" />
+        <span class="range-sep">至</span>
+        <input v-model="endDate" type="date" class="employee-input date-input" @change="onFilterChange" />
+      </div>
       <p class="apps-hint">
-        说明：日志接口需要携带 appId；可按工号和已读状态进一步过滤。
+        说明：日志接口需要携带 appId；默认筛选 httpLatency >= 2000ms 且时间为当天，可按工号、状态、时间进一步过滤。
       </p>
     </section>
 
@@ -123,6 +139,31 @@ const size = ref(10)
 const total = ref(0)
 const employeeNo = ref('')
 const ackFilter = ref('all')
+const durationGt = ref('2000')
+const startDate = ref('')
+const endDate = ref('')
+
+const getTodayDateString = () => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const dateStringToStartMs = (dateStr) => {
+  if (!dateStr) return null
+  const d = new Date(`${dateStr}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d.getTime()
+}
+
+const dateStringToEndExclusiveMs = (dateStr) => {
+  if (!dateStr) return null
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setDate(d.getDate() + 1)
+  return d.getTime()
+}
 
 const getAdminHeaders = () => ({
   'X-Auth-Token': localStorage.getItem('admin_token') || ''
@@ -164,11 +205,29 @@ const fetchList = async () => {
   error.value = ''
   try {
     const ackValue = ackFilter.value === 'all' ? null : (ackFilter.value === 'read' ? 1 : 0)
+    const durationValue = durationGt.value === '' ? null : Number(durationGt.value)
+    if (durationGt.value !== '' && (!Number.isFinite(durationValue) || durationValue < 0)) {
+      throw new Error('httpLatency 过滤值需为大于等于 0 的数字')
+    }
+    const startMs = dateStringToStartMs(startDate.value)
+    const endMs = dateStringToEndExclusiveMs(endDate.value)
+    if (startDate.value && startMs === null) {
+      throw new Error('开始日期格式无效')
+    }
+    if (endDate.value && endMs === null) {
+      throw new Error('结束日期格式无效')
+    }
+    if (startMs !== null && endMs !== null && startMs >= endMs) {
+      throw new Error('结束日期需大于等于开始日期')
+    }
     const { json } = await apiRequest('/api/admin/logs/unread', {
       method: 'POST',
       body: JSON.stringify({
         appId: selectedAppId.value,
         employeeNo: employeeNo.value || null,
+        durationGt: durationValue,
+        createdStartMs: startMs,
+        createdEndMs: endMs,
         ack: ackValue,
         unreadOnly: ackValue === null ? false : undefined,
         page: page.value,
@@ -234,6 +293,9 @@ const formatDate = (v) => {
 }
 
 onMounted(() => {
+  const today = getTodayDateString()
+  startDate.value = today
+  endDate.value = today
   fetchApps().then(() => {
     page.value = 1
     fetchList()
@@ -324,6 +386,15 @@ onMounted(() => {
   border-radius: var(--radius);
   border: 1px solid #d2d2d7;
   background: #f5f5f7;
+  font-size: 0.9rem;
+}
+
+.date-input {
+  min-width: 170px;
+}
+
+.range-sep {
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
