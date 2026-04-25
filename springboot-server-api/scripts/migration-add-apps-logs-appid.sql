@@ -11,5 +11,8 @@ CREATE TABLE IF NOT EXISTS apps (
 ALTER TABLE logs
     ADD COLUMN app_id VARCHAR(64) NOT NULL DEFAULT 'unknown';
 
-CREATE INDEX idx_logs_app_ack_created ON logs (app_id, ack, created_at);
+ALTER TABLE logs
+    ADD COLUMN employee_no VARCHAR(64) NULL;
+
+CREATE INDEX idx_logs_app_emp_ack_created ON logs (app_id, employee_no, ack, created_at);
 

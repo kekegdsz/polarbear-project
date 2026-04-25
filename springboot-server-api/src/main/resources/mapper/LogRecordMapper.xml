@@ -6,18 +6,27 @@
     <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.LogRecord">
         <id column="id" property="id"/>
         <result column="app_id" property="appId"/>
+        <result column="employee_no" property="employeeNo"/>
         <result column="content" property="content"/>
         <result column="ack" property="ack"/>
         <result column="created_at" property="createdAt"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, app_id, content, ack, created_at
+        id, app_id, employee_no, content, ack, created_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logs (app_id, content, ack, created_at)
-        VALUES (#{appId}, #{content}, #{ack}, #{createdAt})
+        INSERT INTO logs (app_id, employee_no, content, ack, created_at)
+        VALUES (#{appId}, #{employeeNo}, #{content}, #{ack}, #{createdAt})
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO logs (app_id, employee_no, content, ack, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.appId}, #{item.employeeNo}, #{item.content}, #{item.ack}, #{item.createdAt})
+        </foreach>
     </insert>
 
     <update id="markAck">
@@ -38,6 +47,9 @@
             <if test="appId != null and appId != ''">
                 AND app_id = #{appId}
             </if>
+            <if test="employeeNo != null and employeeNo != ''">
+                AND employee_no = #{employeeNo}
+            </if>
             <if test="ack != null">
                 AND ack = #{ack}
             </if>
@@ -53,11 +65,19 @@
             <if test="appId != null and appId != ''">
                 AND app_id = #{appId}
             </if>
+            <if test="employeeNo != null and employeeNo != ''">
+                AND employee_no = #{employeeNo}
+            </if>
             <if test="ack != null">
                 AND ack = #{ack}
             </if>
         </where>
     </select>
+
+    <delete id="deleteOlderThan">
+        DELETE FROM logs
+        WHERE created_at &lt; #{cutoff}
+    </delete>
 
 </mapper>
 

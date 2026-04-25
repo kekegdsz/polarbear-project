@@ -89,6 +89,25 @@ public class AdminUserController {
         }
     }
 
+    /**
+     * 删除用户（管理后台操作）
+     */
+    @PostMapping("/{userId}/delete")
+    public Result<Void> delete(@PathVariable("userId") long userId) {
+        if (userId == 999) {
+            return Result.error("系统账号不可删除");
+        }
+        User u = userMapper.selectById(userId);
+        if (u == null) {
+            return Result.success();
+        }
+        if ("admin".equals(u.getRole())) {
+            return Result.error("管理员不可删除");
+        }
+        userMapper.deleteById(userId);
+        return Result.success();
+    }
+
     private UserAdminFullVO toFullVO(User user) {
         UserAdminFullVO vo = new UserAdminFullVO();
         vo.setId(user.getId());

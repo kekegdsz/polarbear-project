@@ -88,7 +88,17 @@
                 </span>
               </td>
               <td class="col-action">
-                <button type="button" class="btn-dm" @click="openDm(u)">系统私聊</button>
+                <div class="row-actions">
+                  <button type="button" class="btn-dm" @click="openDm(u)">系统私聊</button>
+                  <button
+                    type="button"
+                    class="btn-del"
+                    :disabled="deleting === u.id"
+                    @click="deleteUser(u)"
+                  >
+                    {{ deleting === u.id ? '删除中…' : '删除' }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -188,6 +198,7 @@ const dmBody = ref('')
 const dmSending = ref(false)
 const dmError = ref('')
 const dmOk = ref('')
+const deleting = ref(null)
 
 let pollTimer = null
 
@@ -317,6 +328,30 @@ const submitDm = async () => {
     dmError.value = e.message || '发送失败'
   } finally {
     dmSending.value = false
+  }
+}
+
+const deleteUser = async (u) => {
+  if (!u?.id) return
+  if (u.role === 'admin') {
+    error.value = '管理员不可删除'
+    return
+  }
+  const ok = window.confirm(`确认删除用户？\nID=${u.id}\n用户名=${u.username || '-'}\n手机号=${u.mobile || '-'}`)
+  if (!ok) return
+  deleting.value = u.id
+  try {
+    const { resp, json } = await apiRequest(`/api/admin/users/${u.id}/delete`, {
+      method: 'POST',
+      headers: getAdminHeaders()
+    })
+    if (resp.status === 401 || resp.status === 403) return handleAuthFailed()
+    if (json.code !== 0) throw new Error(json.message || '删除失败')
+    await refreshAll()
+  } catch (e) {
+    error.value = e.message || '删除失败'
+  } finally {
+    deleting.value = null
   }
 }
 
@@ -485,6 +520,29 @@ onUnmounted(() => {
   color: #fff;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.btn-del {
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  white-space: nowrap;
+}
+
+.btn-del:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-dm:hover {

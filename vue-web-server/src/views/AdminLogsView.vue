@@ -6,7 +6,7 @@
         <p class="subtitle">按应用区分上传日志（appId），倒序展示，支持标记已读</p>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary" @click="showCreateApp = true">创建应用</button>
+        <router-link class="btn btn-primary link-btn" to="/admin/apps">应用管理</router-link>
         <button class="btn btn-ghost" @click="fetchList" :disabled="loading">
           {{ loading ? '刷新中...' : '刷新' }}
         </button>
@@ -26,8 +26,26 @@
           {{ appsLoading ? '加载中...' : '刷新应用列表' }}
         </button>
       </div>
+      <div class="apps-row employee-row">
+        <label class="apps-label">工号</label>
+        <input
+          v-model.trim="employeeNo"
+          class="employee-input"
+          placeholder="输入工号过滤（可选）"
+          @keyup.enter="onFilterChange"
+        />
+        <button class="btn btn-ghost" @click="onFilterChange" :disabled="loading">按工号筛选</button>
+      </div>
+      <div class="apps-row employee-row">
+        <label class="apps-label">状态</label>
+        <select v-model="ackFilter" class="employee-input" @change="onFilterChange">
+          <option value="all">全部</option>
+          <option value="unread">未读</option>
+          <option value="read">已读</option>
+        </select>
+      </div>
       <p class="apps-hint">
-        说明：日志接口需要携带 appId；这里选择应用后再拉取日志/标记已读。
+        说明：日志接口需要携带 appId；可按工号和已读状态进一步过滤。
       </p>
     </section>
 
@@ -38,7 +56,7 @@
         <thead>
           <tr>
             <th style="width: 90px">ID</th>
-            <th style="width: 220px">AppId</th>
+            <th style="width: 140px">工号</th>
             <th>内容</th>
             <th style="width: 120px">状态</th>
             <th style="width: 190px">创建时间</th>
@@ -48,7 +66,7 @@
         <tbody>
           <tr v-for="row in list" :key="row.id">
             <td>{{ row.id }}</td>
-            <td><code>{{ row.appId || '-' }}</code></td>
+            <td><code>{{ row.employeeNo || '-' }}</code></td>
             <td class="content-cell">{{ row.content }}</td>
             <td>
               <span :class="['badge', row.ack ? 'badge-success' : 'badge-warn']">
@@ -84,34 +102,6 @@
       </div>
     </section>
 
-    <!-- 创建应用弹窗 -->
-    <div v-if="showCreateApp" class="modal-overlay" @click.self="closeCreateApp">
-      <div class="modal">
-        <h3>创建应用</h3>
-        <form @submit.prevent="submitCreateApp" class="form">
-          <div class="form-group">
-            <label>应用名称 <span class="required">*</span></label>
-            <input v-model="appForm.name" required placeholder="例如：安卓端/IOS端/后台任务" />
-          </div>
-          <div class="form-group">
-            <label>备注</label>
-            <input v-model="appForm.remark" placeholder="可选" />
-          </div>
-          <p v-if="createAppError" class="form-error">{{ createAppError }}</p>
-          <div v-if="createdAppId" class="created">
-            <span class="created-label">已生成 AppId：</span>
-            <code class="created-code">{{ createdAppId }}</code>
-            <button type="button" class="btn-copy" @click="copyCreatedAppId">复制 AppId</button>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-ghost" @click="closeCreateApp">关闭</button>
-            <button type="submit" class="btn btn-primary" :disabled="creatingApp">
-              {{ creatingApp ? '创建中...' : '创建' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -131,12 +121,8 @@ const appsLoading = ref(false)
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
-
-const showCreateApp = ref(false)
-const creatingApp = ref(false)
-const createAppError = ref('')
-const createdAppId = ref('')
-const appForm = reactive({ name: '', remark: '' })
+const employeeNo = ref('')
+const ackFilter = ref('all')
 
 const getAdminHeaders = () => ({
   'X-Auth-Token': localStorage.getItem('admin_token') || ''
@@ -177,11 +163,14 @@ const fetchList = async () => {
   loading.value = true
   error.value = ''
   try {
+    const ackValue = ackFilter.value === 'all' ? null : (ackFilter.value === 'read' ? 1 : 0)
     const { json } = await apiRequest('/api/admin/logs/unread', {
       method: 'POST',
       body: JSON.stringify({
         appId: selectedAppId.value,
-        unreadOnly: false,
+        employeeNo: employeeNo.value || null,
+        ack: ackValue,
+        unreadOnly: ackValue === null ? false : undefined,
         page: page.value,
         size: size.value
       })
@@ -212,6 +201,11 @@ const onAppChange = () => {
   fetchList()
 }
 
+const onFilterChange = () => {
+  page.value = 1
+  fetchList()
+}
+
 const ack = async (row) => {
   if (!selectedAppId.value) return
   actioning.value = row.id
@@ -227,50 +221,6 @@ const ack = async (row) => {
     error.value = e.message || '操作失败'
   } finally {
     actioning.value = null
-  }
-}
-
-const closeCreateApp = () => {
-  showCreateApp.value = false
-  creatingApp.value = false
-  createAppError.value = ''
-  createdAppId.value = ''
-  appForm.name = ''
-  appForm.remark = ''
-}
-
-const copyCreatedAppId = async () => {
-  if (!createdAppId.value) return
-  try {
-    await navigator.clipboard.writeText(createdAppId.value)
-  } catch {
-    // fallback: fail silently to keep UX simple
-  }
-}
-
-const submitCreateApp = async () => {
-  creatingApp.value = true
-  createAppError.value = ''
-  createdAppId.value = ''
-  try {
-    const { resp, json } = await apiRequest('/api/admin/apps', {
-      method: 'POST',
-      headers: getAdminHeaders(),
-      body: JSON.stringify({ name: appForm.name, remark: appForm.remark || null })
-    })
-    if (resp.status === 401 || resp.status === 403) return handleAuthFailed()
-    if (json.code !== 0) throw new Error(json.message || '创建失败')
-    createdAppId.value = json.data?.appId || ''
-    await fetchApps()
-    if (createdAppId.value) {
-      selectedAppId.value = createdAppId.value
-      page.value = 1
-      fetchList()
-    }
-  } catch (e) {
-    createAppError.value = e.message || '创建失败'
-  } finally {
-    creatingApp.value = false
   }
 }
 
@@ -322,6 +272,13 @@ onMounted(() => {
   color: #fff;
 }
 
+.link-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-ghost {
   background: transparent;
   border: 1px solid var(--color-border);
@@ -343,6 +300,10 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.employee-row {
+  margin-top: 0.6rem;
+}
+
 .apps-label {
   color: var(--color-text-muted);
   font-size: 0.9rem;
@@ -350,6 +311,15 @@ onMounted(() => {
 
 .apps-select {
   min-width: 360px;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid #d2d2d7;
+  background: #f5f5f7;
+  font-size: 0.9rem;
+}
+
+.employee-input {
+  min-width: 220px;
   padding: 0.45rem 0.6rem;
   border-radius: var(--radius);
   border: 1px solid #d2d2d7;
@@ -476,96 +446,6 @@ code {
   background: #f0f0f5;
   padding: 0.15em 0.4em;
   border-radius: 4px;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: #fff;
-  border-radius: var(--radius);
-  padding: 1.5rem 2rem;
-  min-width: 460px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.15);
-}
-
-.modal h3 {
-  margin-bottom: 1.25rem;
-  font-size: 1.1rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0.35rem;
-}
-
-.form-group .required {
-  color: #ff6b6b;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  border-radius: var(--radius);
-  border: 1px solid #d2d2d7;
-  font-size: 0.9rem;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-
-.form-error {
-  color: #ff6b6b;
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-}
-
-.created {
-  background: #f5f5f7;
-  border: 1px dashed #d2d2d7;
-  border-radius: var(--radius);
-  padding: 0.65rem 0.75rem;
-  margin: 0.75rem 0 0.25rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.created-label {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-}
-
-.created-code {
-  font-size: 0.9rem;
-}
-
-.btn-copy {
-  padding: 0.2rem 0.55rem;
-  border: 1px solid #d2d2d7;
-  background: #fff;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  color: #4b5563;
-  cursor: pointer;
 }
 </style>
 

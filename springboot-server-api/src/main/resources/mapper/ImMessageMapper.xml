@@ -87,4 +87,8 @@
         WHERE m.group_id IN (SELECT group_id FROM im_group_members WHERE user_id = #{userId})
         ORDER BY m.created_at DESC
     </select>
+
+    <delete id="deleteByGroupId">
+        DELETE FROM im_messages WHERE group_id = #{groupId}
+    </delete>
 </mapper>

@@ -18,7 +18,7 @@
             <th>群主用户ID</th>
             <th>人数</th>
             <th>创建时间</th>
-            <th></th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -29,7 +29,17 @@
             <td><strong>{{ g.memberCount }}</strong></td>
             <td>{{ formatDate(g.createdAt) }}</td>
             <td>
-              <router-link class="link" :to="`/admin/groups/${g.id}`">管理</router-link>
+              <div class="row-actions">
+                <router-link class="link" :to="`/admin/groups/${g.id}`">管理</router-link>
+                <button
+                  type="button"
+                  class="btn-danger"
+                  :disabled="dismissingId === g.id"
+                  @click="dismissGroup(g)"
+                >
+                  {{ dismissingId === g.id ? '解散中…' : '解散群' }}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -48,6 +58,7 @@ const router = useRouter()
 const list = ref([])
 const error = ref('')
 const loaded = ref(false)
+const dismissingId = ref(null)
 
 const getAdminHeaders = () => ({
   'X-Auth-Token': localStorage.getItem('admin_token') || '',
@@ -70,6 +81,27 @@ const fetchList = async () => {
     error.value = e.message || '加载失败'
   } finally {
     loaded.value = true
+  }
+}
+
+const dismissGroup = async (g) => {
+  const ok = window.confirm(
+    `确认解散该群？\n群ID=${g.id}\n群名=${g.name || '-'}\n\n解散后群成员关系与群消息都会被删除。`
+  )
+  if (!ok) return
+  dismissingId.value = g.id
+  try {
+    const { resp, json } = await apiRequest(`/api/admin/im/groups/${g.id}/dismiss`, {
+      method: 'POST',
+      headers: getAdminHeaders()
+    })
+    if (resp.status === 401 || resp.status === 403) return handleAuthFailed()
+    if (json.code !== 0) throw new Error(json.message || '解散失败')
+    await fetchList()
+  } catch (e) {
+    error.value = e.message || '解散失败'
+  } finally {
+    dismissingId.value = null
   }
 }
 
@@ -120,6 +152,27 @@ onMounted(fetchList)
 }
 .link:hover {
   text-decoration: underline;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.btn-danger {
+  border: none;
+  border-radius: 8px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.76rem;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .empty {
   color: var(--color-text-muted);

@@ -19,4 +19,6 @@ public interface ImGroupMapper {
     int updateName(@Param("groupId") Long groupId, @Param("name") String name);
 
     List<ImGroupAdminListVO> listAllForAdmin();
+
+    int deleteById(@Param("id") Long id);
 }

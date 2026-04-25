@@ -2,6 +2,7 @@ package com.undersky.api.springbootserverapi.controller;
 
 import com.undersky.api.springbootserverapi.im.mapper.ImGroupMapper;
 import com.undersky.api.springbootserverapi.im.mapper.ImGroupMemberMapper;
+import com.undersky.api.springbootserverapi.im.mapper.ImMessageMapper;
 import com.undersky.api.springbootserverapi.im.model.ImGroup;
 import com.undersky.api.springbootserverapi.im.model.ImGroupMember;
 import com.undersky.api.springbootserverapi.im.model.ImMessage;
@@ -14,6 +15,7 @@ import com.undersky.api.springbootserverapi.model.entity.User;
 import com.undersky.api.springbootserverapi.model.vo.ImGroupAdminDetailVO;
 import com.undersky.api.springbootserverapi.model.vo.ImGroupAdminListVO;
 import com.undersky.api.springbootserverapi.model.vo.ImGroupMemberAdminVO;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,15 +37,18 @@ public class AdminImGroupController {
 
     private final ImGroupMapper groupMapper;
     private final ImGroupMemberMapper groupMemberMapper;
+    private final ImMessageMapper imMessageMapper;
     private final UserMapper userMapper;
     private final ImChatService imChatService;
 
     public AdminImGroupController(ImGroupMapper groupMapper,
                                   ImGroupMemberMapper groupMemberMapper,
+                                  ImMessageMapper imMessageMapper,
                                   UserMapper userMapper,
                                   ImChatService imChatService) {
         this.groupMapper = groupMapper;
         this.groupMemberMapper = groupMemberMapper;
+        this.imMessageMapper = imMessageMapper;
         this.userMapper = userMapper;
         this.imChatService = imChatService;
     }
@@ -113,5 +118,21 @@ public class AdminImGroupController {
         } catch (IllegalArgumentException e) {
             return Result.error(e.getMessage());
         }
+    }
+
+    /**
+     * 管理后台：解散群（删除群、成员关系、群消息）
+     */
+    @PostMapping("/{groupId}/dismiss")
+    @Transactional(rollbackFor = Exception.class)
+    public Result<Void> dismiss(@PathVariable("groupId") long groupId) {
+        ImGroup g = groupMapper.findById(groupId);
+        if (g == null) {
+            return Result.error("群不存在");
+        }
+        imMessageMapper.deleteByGroupId(groupId);
+        groupMemberMapper.deleteByGroupId(groupId);
+        groupMapper.deleteById(groupId);
+        return Result.success();
     }
 }

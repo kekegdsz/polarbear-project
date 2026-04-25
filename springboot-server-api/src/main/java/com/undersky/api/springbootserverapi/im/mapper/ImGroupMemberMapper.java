@@ -20,4 +20,6 @@ public interface ImGroupMemberMapper {
     int updateRole(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("role") String role);
 
     List<ImGroupMember> listByGroupId(@Param("groupId") Long groupId);
+
+    int deleteByGroupId(@Param("groupId") Long groupId);
 }

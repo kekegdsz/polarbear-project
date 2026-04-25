@@ -53,4 +53,6 @@ public interface UserMapper {
     int updatePassword(@Param("id") Long id, @Param("password") String password, @Param("updatedAt") java.time.LocalDateTime updatedAt);
 
     int backfillBlankNicknames();
+
+    int deleteById(@Param("id") Long id);
 }

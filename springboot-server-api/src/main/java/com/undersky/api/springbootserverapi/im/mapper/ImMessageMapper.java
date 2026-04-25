@@ -36,4 +36,6 @@ public interface ImMessageMapper {
     List<ImMessage> listRecentP2PPeers(@Param("userId") Long userId);
 
     List<ImMessage> listRecentGroupSummaries(@Param("userId") Long userId);
+
+    int deleteByGroupId(@Param("groupId") Long groupId);
 }

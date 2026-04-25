@@ -4,9 +4,11 @@ import com.undersky.api.springbootserverapi.mapper.LogRecordMapper;
 import com.undersky.api.springbootserverapi.model.dto.PageResult;
 import com.undersky.api.springbootserverapi.model.dto.Result;
 import com.undersky.api.springbootserverapi.model.entity.LogRecord;
+import com.undersky.api.springbootserverapi.service.LogIngestService;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,9 +19,11 @@ import java.util.List;
 public class AdminLogController {
 
     private final LogRecordMapper logRecordMapper;
+    private final LogIngestService logIngestService;
 
-    public AdminLogController(LogRecordMapper logRecordMapper) {
+    public AdminLogController(LogRecordMapper logRecordMapper, LogIngestService logIngestService) {
         this.logRecordMapper = logRecordMapper;
+        this.logIngestService = logIngestService;
     }
 
     /**
@@ -30,16 +34,66 @@ public class AdminLogController {
         if (req == null || req.getAppId() == null || req.getAppId().isBlank()) {
             return Result.error("appId 不能为空");
         }
-        if (req.getContent() == null || req.getContent().isBlank()) {
+        String rawContent = req.getRaw() != null && !req.getRaw().isBlank() ? req.getRaw() : req.getContent();
+        if (rawContent == null || rawContent.isBlank()) {
             return Result.error("日志内容不能为空");
         }
         LogRecord record = new LogRecord();
         record.setAppId(req.getAppId().trim());
-        record.setContent(req.getContent().trim());
+        if (req.getEmployeeNo() != null && !req.getEmployeeNo().isBlank()) {
+            record.setEmployeeNo(req.getEmployeeNo().trim());
+        }
+        record.setContent(rawContent.trim());
         record.setAck(0);
         record.setCreatedAt(LocalDateTime.now());
-        logRecordMapper.insert(record);
+        boolean accepted = logIngestService.ingest(record);
+        if (!accepted) {
+            return Result.error("日志写入繁忙，请稍后重试");
+        }
         return Result.success(record);
+    }
+
+    /**
+     * 批量保存日志（同一 appId）
+     */
+    @PostMapping("/batch")
+    public Result<BatchCreateLogResponse> createBatch(@RequestBody BatchCreateLogRequest req) {
+        if (req == null || req.getAppId() == null || req.getAppId().isBlank()) {
+            return Result.error("appId 不能为空");
+        }
+        List<String> sourceContents = req.getRaws() != null && !req.getRaws().isEmpty() ? req.getRaws() : req.getContents();
+        if (sourceContents == null || sourceContents.isEmpty()) {
+            return Result.error("日志内容列表不能为空");
+        }
+        if (sourceContents.size() > 1000) {
+            return Result.error("单次最多上传 1000 条日志");
+        }
+        String appId = req.getAppId().trim();
+        String employeeNo = req.getEmployeeNo() == null ? null : req.getEmployeeNo().trim();
+        LocalDateTime now = LocalDateTime.now();
+        List<LogRecord> records = new ArrayList<>();
+        for (String content : sourceContents) {
+            if (content == null || content.isBlank()) {
+                continue;
+            }
+            LogRecord r = new LogRecord();
+            r.setAppId(appId);
+            if (employeeNo != null && !employeeNo.isBlank()) {
+                r.setEmployeeNo(employeeNo);
+            }
+            r.setContent(content.trim());
+            r.setAck(0);
+            r.setCreatedAt(now);
+            records.add(r);
+        }
+        if (records.isEmpty()) {
+            return Result.error("日志内容列表不能为空");
+        }
+        int accepted = logIngestService.ingestBatch(records);
+        if (accepted <= 0) {
+            return Result.error("日志写入繁忙，请稍后重试");
+        }
+        return Result.success(new BatchCreateLogResponse(accepted));
     }
 
     /**
@@ -70,20 +124,30 @@ public class AdminLogController {
         if (req == null || req.getAppId() == null || req.getAppId().isBlank()) {
             return Result.error("appId 不能为空");
         }
-        boolean unreadOnly = req.getUnreadOnly() == null || req.getUnreadOnly();
-        Integer ack = unreadOnly ? 0 : null;
+        Integer ack;
+        if (req.getAck() != null && (req.getAck() == 0 || req.getAck() == 1)) {
+            // 优先使用新参数 ack：0=未读，1=已读，null=全部
+            ack = req.getAck();
+        } else {
+            // 兼容旧参数 unreadOnly
+            boolean unreadOnly = req.getUnreadOnly() == null || req.getUnreadOnly();
+            ack = unreadOnly ? 0 : null;
+        }
         int page = req.getPage() == null || req.getPage() < 1 ? 1 : req.getPage();
         int size = req.getSize() == null || req.getSize() < 1 || req.getSize() > 100 ? 10 : req.getSize();
         int offset = (page - 1) * size;
         String appId = req.getAppId().trim();
-        long total = logRecordMapper.countByFilter(appId, ack);
-        List<LogRecord> list = logRecordMapper.selectList(appId, ack, offset, size);
+        String employeeNo = req.getEmployeeNo() == null ? null : req.getEmployeeNo().trim();
+        long total = logRecordMapper.countByFilter(appId, employeeNo, ack);
+        List<LogRecord> list = logRecordMapper.selectList(appId, employeeNo, ack, offset, size);
         return Result.success(new PageResult<>(total, list));
     }
 
     public static class UnreadListRequest {
         private String appId;
+        private String employeeNo;
         private Boolean unreadOnly;
+        private Integer ack;
         private Integer page;
         private Integer size;
 
@@ -101,6 +165,22 @@ public class AdminLogController {
 
         public void setUnreadOnly(Boolean unreadOnly) {
             this.unreadOnly = unreadOnly;
+        }
+
+        public Integer getAck() {
+            return ack;
+        }
+
+        public void setAck(Integer ack) {
+            this.ack = ack;
+        }
+
+        public String getEmployeeNo() {
+            return employeeNo;
+        }
+
+        public void setEmployeeNo(String employeeNo) {
+            this.employeeNo = employeeNo;
         }
 
         public Integer getPage() {
@@ -122,6 +202,8 @@ public class AdminLogController {
 
     public static class CreateLogRequest {
         private String appId;
+        private String employeeNo;
+        private String raw;
         private String content;
 
         public String getAppId() {
@@ -139,6 +221,22 @@ public class AdminLogController {
         public void setContent(String content) {
             this.content = content;
         }
+
+        public String getEmployeeNo() {
+            return employeeNo;
+        }
+
+        public void setEmployeeNo(String employeeNo) {
+            this.employeeNo = employeeNo;
+        }
+
+        public String getRaw() {
+            return raw;
+        }
+
+        public void setRaw(String raw) {
+            this.raw = raw;
+        }
     }
 
     public static class AckRequest {
@@ -150,6 +248,64 @@ public class AdminLogController {
 
         public void setAppId(String appId) {
             this.appId = appId;
+        }
+    }
+
+    public static class BatchCreateLogRequest {
+        private String appId;
+        private String employeeNo;
+        private List<String> raws;
+        private List<String> contents;
+
+        public String getAppId() {
+            return appId;
+        }
+
+        public void setAppId(String appId) {
+            this.appId = appId;
+        }
+
+        public List<String> getContents() {
+            return contents;
+        }
+
+        public void setContents(List<String> contents) {
+            this.contents = contents;
+        }
+
+        public String getEmployeeNo() {
+            return employeeNo;
+        }
+
+        public void setEmployeeNo(String employeeNo) {
+            this.employeeNo = employeeNo;
+        }
+
+        public List<String> getRaws() {
+            return raws;
+        }
+
+        public void setRaws(List<String> raws) {
+            this.raws = raws;
+        }
+    }
+
+    public static class BatchCreateLogResponse {
+        private int insertedCount;
+
+        public BatchCreateLogResponse() {
+        }
+
+        public BatchCreateLogResponse(int insertedCount) {
+            this.insertedCount = insertedCount;
+        }
+
+        public int getInsertedCount() {
+            return insertedCount;
+        }
+
+        public void setInsertedCount(int insertedCount) {
+            this.insertedCount = insertedCount;
         }
     }
 }

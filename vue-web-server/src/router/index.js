@@ -62,6 +62,12 @@ const routes = [
         meta: { title: '订单管理' }
       },
       {
+        path: 'apps',
+        name: 'AdminApps',
+        component: () => import('../views/AdminAppsView.vue'),
+        meta: { title: '应用管理' }
+      },
+      {
         path: 'groups',
         name: 'AdminGroups',
         component: () => import('../views/AdminGroupsView.vue'),

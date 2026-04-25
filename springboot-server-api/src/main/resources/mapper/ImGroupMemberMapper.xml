@@ -38,4 +38,8 @@
         WHERE group_id = #{groupId}
         ORDER BY joined_at
     </select>
+
+    <delete id="deleteByGroupId">
+        DELETE FROM im_group_members WHERE group_id = #{groupId}
+    </delete>
 </mapper>

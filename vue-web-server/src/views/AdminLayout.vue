@@ -7,6 +7,7 @@
         <router-link to="/admin/groups" class="menu-item" active-class="active">群管理</router-link>
         <router-link to="/admin/versions" class="menu-item" active-class="active">版本管理</router-link>
         <router-link to="/admin/orders" class="menu-item" active-class="active">订单管理</router-link>
+        <router-link to="/admin/apps" class="menu-item" active-class="active">应用管理</router-link>
         <router-link to="/admin/orders/logs" class="menu-item sub" active-class="active">日志管理</router-link>
       </nav>
     </aside>

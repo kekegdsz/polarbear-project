@@ -36,4 +36,8 @@
         FROM im_groups g
         ORDER BY g.id DESC
     </select>
+
+    <delete id="deleteById">
+        DELETE FROM im_groups WHERE id = #{id}
+    </delete>
 </mapper>

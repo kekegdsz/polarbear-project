@@ -6,6 +6,7 @@ public class LogRecord {
 
     private Long id;
     private String appId;
+    private String employeeNo;
     private String content;
     /**
      * 0-未读，1-已读
@@ -35,6 +36,14 @@ public class LogRecord {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getEmployeeNo() {
+        return employeeNo;
+    }
+
+    public void setEmployeeNo(String employeeNo) {
+        this.employeeNo = employeeNo;
     }
 
     public Integer getAck() {
