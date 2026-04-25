@@ -72,6 +72,12 @@ const routes = [
         name: 'AdminGroupDetail',
         component: () => import('../views/AdminGroupDetailView.vue'),
         meta: { title: '群详情' }
+      },
+      {
+        path: 'orders/logs',
+        name: 'AdminOrderLogs',
+        component: () => import('../views/AdminLogsView.vue'),
+        meta: { title: '日志管理' }
       }
     ]
   }

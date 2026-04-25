@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.AppMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.App">
+        <id column="id" property="id"/>
+        <result column="app_id" property="appId"/>
+        <result column="name" property="name"/>
+        <result column="remark" property="remark"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, app_id, name, remark, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO apps (app_id, name, remark, created_at)
+        VALUES (#{appId}, #{name}, #{remark}, #{createdAt})
+    </insert>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM apps
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+</mapper>
+

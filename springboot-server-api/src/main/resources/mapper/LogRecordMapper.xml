@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.LogRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.LogRecord">
+        <id column="id" property="id"/>
+        <result column="app_id" property="appId"/>
+        <result column="content" property="content"/>
+        <result column="ack" property="ack"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, app_id, content, ack, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO logs (app_id, content, ack, created_at)
+        VALUES (#{appId}, #{content}, #{ack}, #{createdAt})
+    </insert>
+
+    <update id="markAck">
+        UPDATE logs SET ack = 1
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM logs
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM logs
+        <where>
+            <if test="appId != null and appId != ''">
+                AND app_id = #{appId}
+            </if>
+            <if test="ack != null">
+                AND ack = #{ack}
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByFilter" resultType="long">
+        SELECT COUNT(1)
+        FROM logs
+        <where>
+            <if test="appId != null and appId != ''">
+                AND app_id = #{appId}
+            </if>
+            <if test="ack != null">
+                AND ack = #{ack}
+            </if>
+        </where>
+    </select>
+
+</mapper>
+

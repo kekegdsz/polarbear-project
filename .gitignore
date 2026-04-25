@@ -6,6 +6,7 @@
 # Backend (Maven)
 springboot-server-api/target/
 springboot-server-api/.mvn/wrapper/maven-wrapper.jar
+springboot-server-api/data/
 
 # Frontend
 vue-web-server/node_modules/

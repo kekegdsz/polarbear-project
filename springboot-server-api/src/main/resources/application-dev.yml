@@ -1,3 +1,8 @@
-# 开发环境配置（与 Vite 网页 8081 分离：本端口提供 /api 与长连接 WebSocket）
+# 开发环境配置
+spring:
+  datasource:
+    # 使用文件模式 H2，方便本地数据持久化（应用/日志不会随重启丢失）
+    url: jdbc:h2:file:./data/springboot_api;MODE=MySQL;AUTO_SERVER=TRUE
+
 server:
   port: 8082

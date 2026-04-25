@@ -7,6 +7,7 @@
         <router-link to="/admin/groups" class="menu-item" active-class="active">群管理</router-link>
         <router-link to="/admin/versions" class="menu-item" active-class="active">版本管理</router-link>
         <router-link to="/admin/orders" class="menu-item" active-class="active">订单管理</router-link>
+        <router-link to="/admin/orders/logs" class="menu-item sub" active-class="active">日志管理</router-link>
       </nav>
     </aside>
     <main class="content">
@@ -73,6 +74,15 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   color: #1d1d1f;
   border-left: 3px solid #ff9f43;
+}
+
+.menu-item.sub {
+  font-size: 0.85rem;
+  opacity: 0.95;
+}
+
+.menu-item.sub.active {
+  border-left: 3px solid #6c5ce7;
 }
 
 .content {
