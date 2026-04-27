@@ -1,6 +1,33 @@
 <template>
   <div ref="wrapRef" class="home-wrapper">
     <canvas ref="canvasRef" class="snake-canvas" aria-hidden="true" />
+    <section class="qr-card" aria-label="链接生成二维码">
+      <div class="qr-title">链接 → 二维码</div>
+      <div class="qr-row">
+        <input
+          v-model.trim="linkInput"
+          class="qr-input"
+          type="url"
+          inputmode="url"
+          placeholder="粘贴链接，例如 https://example.com"
+          @keydown.enter.prevent="generateQr"
+        />
+        <button class="qr-btn" type="button" @click="generateQr" :disabled="!normalizedLink">
+          生成
+        </button>
+      </div>
+      <div v-if="errorText" class="qr-error" role="status">{{ errorText }}</div>
+
+      <div v-if="qrDataUrl" class="qr-preview">
+        <img class="qr-img" :src="qrDataUrl" alt="二维码预览" />
+        <div class="qr-actions">
+          <a class="qr-link" :href="qrDataUrl" :download="downloadName">下载 PNG</a>
+          <button class="qr-link" type="button" @click="copyLink" :disabled="!normalizedLink">
+            复制链接
+          </button>
+        </div>
+      </div>
+    </section>
     <aside class="score-board" aria-label="Snake score" aria-live="polite">
       <div class="score-block">
         <div class="score-label">SCORE</div>
@@ -11,6 +38,7 @@
         <div class="score-val score-best">{{ highScore }}</div>
       </div>
     </aside>
+
     <div class="hello">
       <span class="hello-top">Hello，</span>
       <span class="hello-bottom">世界</span>
@@ -19,10 +47,75 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import QRCode from 'qrcode'
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)
+
+const linkInput = ref('')
+const qrDataUrl = ref('')
+const errorText = ref('')
+
+const normalizedLink = computed(() => {
+  const raw = linkInput.value?.trim()
+  if (!raw) return ''
+  // 支持用户直接粘贴域名或路径：自动补全协议
+  const withProto = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : `https://${raw}`
+  try {
+    const u = new URL(withProto)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return ''
+    return u.toString()
+  } catch {
+    return ''
+  }
+})
+
+const downloadName = computed(() => {
+  const u = normalizedLink.value
+  if (!u) return 'qrcode.png'
+  try {
+    const host = new URL(u).hostname.replace(/[^a-zA-Z0-9.-]/g, '_')
+    return `qrcode-${host || 'link'}.png`
+  } catch {
+    return 'qrcode.png'
+  }
+})
+
+async function generateQr() {
+  errorText.value = ''
+  const text = normalizedLink.value
+  if (!text) {
+    qrDataUrl.value = ''
+    errorText.value = '请输入合法的 http/https 链接'
+    return
+  }
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(text, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 260,
+      color: { dark: '#111827', light: '#ffffff' }
+    })
+  } catch (e) {
+    qrDataUrl.value = ''
+    errorText.value = '生成失败，请稍后重试'
+  }
+}
+
+async function copyLink() {
+  const text = normalizedLink.value
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    errorText.value = '已复制到剪贴板'
+    window.setTimeout(() => {
+      if (errorText.value === '已复制到剪贴板') errorText.value = ''
+    }, 1200)
+  } catch {
+    errorText.value = '复制失败（浏览器不支持或无权限）'
+  }
+}
 
 /** 当前得分 = 蛇长 - 初始长度；最高存 localStorage */
 const scoreNow = ref(0)
@@ -221,7 +314,11 @@ function draw() {
   const gw = cell * COLS
   const gh = cell * ROWS
 
-  ctx.strokeStyle = 'rgba(210, 210, 215, 0.35)'
+  // 网格呼吸：绿色轻微发光（随时间周期变化）
+  const t = Date.now() / 1000
+  const pulse = (Math.sin(t * 2 * Math.PI * 0.42) + 1) / 2 // 0~1
+  const a = 0.12 + pulse * 0.22
+  ctx.strokeStyle = `rgba(52, 199, 89, ${a})`
   ctx.lineWidth = 1
   for (let c = 0; c <= COLS; c++) {
     const px = offsetX + c * cell
@@ -308,6 +405,114 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+}
+
+.qr-card {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 4;
+  width: min(460px, calc(100vw - 28px));
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.08),
+    0 2px 10px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.qr-title {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #111827;
+  margin-bottom: 10px;
+}
+
+.qr-row {
+  display: flex;
+  gap: 10px;
+}
+
+.qr-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  outline: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111827;
+}
+
+.qr-input:focus {
+  border-color: rgba(0, 113, 227, 0.55);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.18);
+}
+
+.qr-btn {
+  height: 40px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #0071e3, #64d2ff);
+  cursor: pointer;
+}
+
+.qr-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.qr-error {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #b42318;
+}
+
+.qr-preview {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #fff;
+}
+
+.qr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qr-link {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+  color: #111827;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.qr-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .score-board {

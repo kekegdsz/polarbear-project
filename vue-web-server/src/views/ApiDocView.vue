@@ -1,8 +1,99 @@
 <template>
   <div class="api-doc">
-    <div class="doc-card">
+    <aside v-if="tocItems.length" class="toc" aria-label="文档目录">
+      <div class="toc-title">目录</div>
+      <nav class="toc-nav">
+        <button
+          v-for="item in tocItems"
+          :key="item.id"
+          class="toc-item"
+          :class="{ active: item.id === activeTocId, h3: item.level === 3 }"
+          type="button"
+          @click="scrollToId(item.id)"
+        >
+          <span class="toc-text">{{ item.text }}</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div ref="docRef" class="doc-card">
       <h1 class="title">客户端 API 接入文档</h1>
       <p class="subtitle">苍穹之下 - 客户端接入说明</p>
+
+      <section class="section">
+        <h2>0. 服务器 API 清单（官网维护）</h2>
+
+        <div class="srv-toolbar">
+          <label class="srv-field">
+            <span class="srv-label">服务器</span>
+            <select v-model="activeServerId" class="srv-select">
+              <option v-for="s in servers" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </label>
+
+          <label class="srv-field srv-field-grow">
+            <span class="srv-label">搜索</span>
+            <input v-model.trim="q" class="srv-search" placeholder="按标题/路径/标签搜索…" />
+          </label>
+        </div>
+
+        <div v-if="activeServer" class="srv-card">
+          <div class="srv-head">
+            <div class="srv-name">{{ activeServer.name }}</div>
+            <div class="srv-meta">
+              <span v-if="activeServer.host" class="srv-chip">host: {{ activeServer.host }}</span>
+              <span v-if="activeServer.publicSite" class="srv-chip">site: {{ activeServer.publicSite }}</span>
+            </div>
+          </div>
+
+          <div class="srv-base">
+            <div class="srv-base-label">Base URL</div>
+            <code class="srv-base-code">{{ activeServer.baseUrl }}</code>
+            <button class="srv-copy" type="button" @click="copyText(activeServer.baseUrl)">复制</button>
+          </div>
+
+          <ul v-if="activeServer.notes?.length" class="srv-notes">
+            <li v-for="(n, idx) in activeServer.notes" :key="idx">{{ n }}</li>
+          </ul>
+
+          <table class="doc-table srv-table">
+            <thead>
+              <tr>
+                <th style="width: 96px">方法</th>
+                <th>接口</th>
+                <th style="width: 150px">分类</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(e, idx) in filteredEndpoints" :key="idx">
+                <td><code>{{ e.method }}</code></td>
+                <td class="srv-endpoint">
+                  <div class="srv-endpoint-title">
+                    <strong>{{ e.title }}</strong>
+                    <span v-if="e.desc" class="srv-endpoint-desc">- {{ e.desc }}</span>
+                  </div>
+                  <div class="srv-endpoint-path">
+                    <code>{{ e.path }}</code>
+                    <button
+                      class="srv-copy"
+                      type="button"
+                      @click="copyText(joinUrl(activeServer.baseUrl, e.path, e.method))"
+                    >
+                      复制完整地址
+                    </button>
+                  </div>
+                </td>
+                <td>
+                  <code v-if="e.tag">{{ e.tag }}</code>
+                </td>
+              </tr>
+              <tr v-if="filteredEndpoints.length === 0">
+                <td colspan="3" class="srv-empty">没有匹配的接口</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section class="section">
         <h2>1. 接口基础</h2>
@@ -263,12 +354,64 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { apiCatalog } from '../config/apiCatalog'
 
 const apiBase = computed(() => {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}/api`
 })
+
+const docRef = ref(null)
+const tocItems = ref([])
+const activeTocId = ref('')
+let onScroll = null
+
+const servers = apiCatalog.servers || []
+const activeServerId = ref(servers[0]?.id || '')
+const q = ref('')
+
+const activeServer = computed(() => servers.find((s) => s.id === activeServerId.value) || servers[0] || null)
+
+const filteredEndpoints = computed(() => {
+  const s = activeServer.value
+  if (!s?.endpoints?.length) return []
+  const key = (q.value || '').toLowerCase()
+  if (!key) return s.endpoints
+  return s.endpoints.filter((e) => {
+    const hay =
+      `${e.tag || ''} ${e.method || ''} ${e.title || ''} ${e.desc || ''} ${e.path || ''}`.toLowerCase()
+    return hay.includes(key)
+  })
+})
+
+function joinUrl(baseUrl, path, method) {
+  // WS 的路径在文档里通常写成 /im/ws（同源），这里给出更直观的完整 URL
+  if ((method || '').toUpperCase() === 'WS') {
+    try {
+      const u = new URL(baseUrl)
+      const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:'
+      return `${wsProto}//${u.host}${path.startsWith('/') ? path : `/${path}`}`
+    } catch {
+      return path
+    }
+  }
+  const b = String(baseUrl || '').replace(/\/+$/, '')
+  const p = String(path || '')
+  if (!p) return b
+  if (/^https?:\/\//i.test(p) || /^wss?:\/\//i.test(p)) return p
+  return `${b}${p.startsWith('/') ? '' : '/'}${p}`
+}
+
+async function copyText(text) {
+  const s = String(text || '').trim()
+  if (!s) return
+  try {
+    await navigator.clipboard.writeText(s)
+  } catch {
+    // ignore: 某些浏览器无权限时不抛 UI
+  }
+}
 
 /** 与 HTTP 同源：/api/im/ws（经 Nginx/Vite 反代到 Spring） */
 const imWsUrl = computed(() => {
@@ -288,14 +431,87 @@ const imWsNettyUrl = computed(() => {
   const h = window.location.hostname || 'localhost'
   return `${wsProto}//${h}:19080/im/ws`
 })
+
+function slugify(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+}
+
+function ensureHeadingIds(rootEl) {
+  const map = new Map()
+  const headings = Array.from(rootEl.querySelectorAll('h2, h3'))
+  const items = []
+  for (const h of headings) {
+    const level = h.tagName === 'H2' ? 2 : 3
+    const text = (h.textContent || '').trim()
+    if (!text) continue
+
+    let id = h.id?.trim()
+    if (!id) id = slugify(text) || `sec-${level}`
+
+    const used = map.get(id) || 0
+    map.set(id, used + 1)
+    if (used > 0) id = `${id}-${used + 1}`
+
+    h.id = id
+    items.push({ id, level, text })
+  }
+  return items
+}
+
+function computeActiveId(items) {
+  if (!items.length) return ''
+  const fromTop = 110
+  for (let i = items.length - 1; i >= 0; i--) {
+    const el = document.getElementById(items[i].id)
+    if (!el) continue
+    const rect = el.getBoundingClientRect()
+    if (rect.top <= fromTop) return items[i].id
+  }
+  return items[0].id
+}
+
+function scrollToId(id) {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  history.replaceState(null, '', `#${encodeURIComponent(id)}`)
+}
+
+onMounted(() => {
+  nextTick(() => {
+    const root = docRef.value
+    if (!root) return
+    const items = ensureHeadingIds(root)
+    tocItems.value = items
+    activeTocId.value = computeActiveId(items)
+
+    onScroll = () => {
+      activeTocId.value = computeActiveId(tocItems.value)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+  })
+})
+
+onUnmounted(() => {
+  if (onScroll) window.removeEventListener('scroll', onScroll)
+  onScroll = null
+})
 </script>
 
 <style scoped>
 .api-doc {
   width: 100%;
-  max-width: 720px;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 2rem 1rem;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 18px;
 }
 
 .doc-card {
@@ -304,6 +520,75 @@ const imWsNettyUrl = computed(() => {
   border: 1px solid #e5e5ea;
   padding: 2rem 2.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.toc {
+  position: sticky;
+  top: 86px;
+  align-self: start;
+  height: calc(100vh - 100px);
+  overflow: auto;
+  border: 1px solid #e5e5ea;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px 12px 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.toc-title {
+  font-weight: 700;
+  color: #1d1d1f;
+  margin-bottom: 10px;
+}
+
+.toc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toc-item {
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 10px;
+  padding: 7px 8px;
+  cursor: pointer;
+  color: #333;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.toc-item.h3 {
+  padding-left: 16px;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.toc-item:hover {
+  background: #f5f5f7;
+}
+
+.toc-item.active {
+  border-color: rgba(0, 113, 227, 0.28);
+  background: rgba(0, 113, 227, 0.08);
+  color: #0b5cab;
+}
+
+.toc-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 980px) {
+  .api-doc {
+    grid-template-columns: 1fr;
+  }
+  .toc {
+    display: none;
+  }
 }
 
 .title {
@@ -321,6 +606,145 @@ const imWsNettyUrl = computed(() => {
 
 .section {
   margin-bottom: 2rem;
+}
+
+.srv-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 1rem;
+}
+
+.srv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.srv-field-grow {
+  flex: 1;
+  min-width: 260px;
+}
+
+.srv-label {
+  font-size: 0.85rem;
+  color: #6e6e73;
+}
+
+.srv-select,
+.srv-search {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #e5e5ea;
+  padding: 0 10px;
+  outline: none;
+}
+
+.srv-select:focus,
+.srv-search:focus {
+  border-color: rgba(0, 113, 227, 0.55);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.14);
+}
+
+.srv-card {
+  border: 1px solid #e5e5ea;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fbfbfd;
+}
+
+.srv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.srv-name {
+  font-weight: 700;
+  color: #1d1d1f;
+}
+
+.srv-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.srv-chip {
+  font-size: 0.82rem;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  border: 1px solid #e5e5ea;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.srv-base {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 8px;
+}
+
+.srv-base-label {
+  color: #6e6e73;
+  font-size: 0.9rem;
+}
+
+.srv-base-code {
+  display: inline-block;
+}
+
+.srv-copy {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e5ea;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.srv-copy:hover {
+  border-color: rgba(0, 113, 227, 0.45);
+}
+
+.srv-notes {
+  margin: 0.4rem 0 0.75rem;
+  color: #444;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.srv-table {
+  margin-top: 0.6rem;
+}
+
+.srv-endpoint-title {
+  margin-bottom: 6px;
+}
+
+.srv-endpoint-desc {
+  color: #6e6e73;
+  font-weight: 400;
+}
+
+.srv-endpoint-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.srv-empty {
+  color: #6e6e73;
+  text-align: center;
+  padding: 14px 10px;
 }
 
 .section h2 {
