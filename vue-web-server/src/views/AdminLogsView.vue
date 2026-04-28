@@ -61,7 +61,7 @@
         <input v-model="endDate" type="date" class="employee-input date-input" @change="onFilterChange" />
       </div>
       <p class="apps-hint">
-        说明：日志接口需要携带 appId；默认筛选 httpLatency >= 2000ms 且时间为当天，可按工号、状态、时间进一步过滤。
+        说明：日志接口需要携带 appId；默认筛选 httpLatency >= 2000ms（全时间范围），可按工号、状态、时间进一步过滤。
       </p>
     </section>
 
@@ -142,14 +142,6 @@ const ackFilter = ref('all')
 const durationGt = ref('2000')
 const startDate = ref('')
 const endDate = ref('')
-
-const getTodayDateString = () => {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
 
 const dateStringToStartMs = (dateStr) => {
   if (!dateStr) return null
@@ -293,9 +285,6 @@ const formatDate = (v) => {
 }
 
 onMounted(() => {
-  const today = getTodayDateString()
-  startDate.value = today
-  endDate.value = today
   fetchApps().then(() => {
     page.value = 1
     fetchList()
