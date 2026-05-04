@@ -2,11 +2,10 @@
   <div>
     <header class="content-header">
       <div>
-        <h1>日志管理</h1>
-        <p class="subtitle">按应用区分上传日志（appId），倒序展示，支持标记已读</p>
+        <h1>编译日志管理</h1>
+        <p class="subtitle">Gradle 构建上报：耗时、机器、起止时间（需在 Android 工程配置 compileReportUrl / compileReportAppId）</p>
       </div>
       <div class="header-actions">
-        <router-link class="btn btn-primary link-btn" to="/admin/apps">应用管理</router-link>
         <button class="btn btn-ghost" @click="fetchList" :disabled="loading">
           {{ loading ? '刷新中...' : '刷新' }}
         </button>
@@ -27,41 +26,13 @@
         </button>
       </div>
       <div class="apps-row employee-row">
-        <label class="apps-label">工号</label>
-        <input
-          v-model.trim="employeeNo"
-          class="employee-input"
-          placeholder="输入工号过滤（可选）"
-          @keyup.enter="onFilterChange"
-        />
-        <button class="btn btn-ghost" @click="onFilterChange" :disabled="loading">按工号筛选</button>
-      </div>
-      <div class="apps-row employee-row">
-        <label class="apps-label">状态</label>
-        <select v-model="ackFilter" class="employee-input" @change="onFilterChange">
-          <option value="all">全部</option>
-          <option value="unread">未读</option>
-          <option value="read">已读</option>
-        </select>
-      </div>
-      <div class="apps-row employee-row">
-        <label class="apps-label">httpLatency</label>
-        <input
-          v-model.trim="durationGt"
-          class="employee-input"
-          placeholder="例如 2000（筛选 httpLatency >= 2000ms）"
-          @keyup.enter="onFilterChange"
-        />
-        <button class="btn btn-ghost" @click="onFilterChange" :disabled="loading">按 httpLatency 筛选</button>
-      </div>
-      <div class="apps-row employee-row">
         <label class="apps-label">时间</label>
         <input v-model="startDate" type="date" class="employee-input date-input" @change="onFilterChange" />
         <span class="range-sep">至</span>
         <input v-model="endDate" type="date" class="employee-input date-input" @change="onFilterChange" />
       </div>
       <p class="apps-hint">
-        说明：日志接口需要携带 appId；可选填写 httpLatency 下限筛选；可按工号、状态、时间进一步过滤。
+        上报接口（无需登录）：<code>POST /api/admin/compile-logs/report</code>，body 含 appId、durationMs、startedAtMs、endedAtMs、machine、osUser、tasks、success 等。
       </p>
     </section>
 
@@ -71,58 +42,54 @@
       <table class="table" v-if="list.length">
         <thead>
           <tr>
-            <th style="width: 90px">ID</th>
-            <th style="width: 140px">工号</th>
-            <th>内容</th>
-            <th style="width: 120px">状态</th>
-            <th style="width: 190px">创建时间</th>
-            <th style="width: 140px">操作</th>
+            <th style="width: 72px">ID</th>
+            <th style="width: 88px">结果</th>
+            <th style="width: 100px">耗时</th>
+            <th style="width: 120px">机器 / 用户</th>
+            <th style="width: 170px">编译开始</th>
+            <th style="width: 170px">编译结束</th>
+            <th style="max-width: 420px">项目 · 任务</th>
+            <th style="width: 160px">上报时间</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in list" :key="row.id">
             <td>{{ row.id }}</td>
-            <td><code>{{ row.employeeNo || '-' }}</code></td>
-            <td class="content-cell">{{ row.content }}</td>
             <td>
-              <span :class="['badge', row.ack ? 'badge-success' : 'badge-warn']">
-                {{ row.ack ? '已读' : '未读' }}
+              <span :class="['badge', row.success ? 'badge-success' : 'badge-warn']">
+                {{ row.success ? '成功' : '失败' }}
               </span>
             </td>
-            <td>{{ formatDate(row.createdAt) }}</td>
-            <td>
-              <button
-                v-if="!row.ack"
-                class="btn-action btn-ack"
-                @click="ack(row)"
-                :disabled="actioning === row.id"
-              >
-                {{ actioning === row.id ? '...' : '标记已读' }}
-              </button>
-              <span v-else class="muted">-</span>
+            <td>{{ formatDuration(row.durationMs) }}</td>
+            <td class="cell-tight">
+              <div class="mono">{{ row.machine || '-' }}</div>
+              <div class="muted small">{{ row.osUser || '-' }}</div>
             </td>
+            <td>{{ formatDate(row.startedAt) }}</td>
+            <td>{{ formatDate(row.endedAt) }}</td>
+            <td class="cell-project-tasks" :title="projectTasksLine(row)">
+              {{ projectTasksLine(row) }}
+            </td>
+            <td>{{ formatDate(row.createdAt) }}</td>
           </tr>
         </tbody>
       </table>
 
-      <p v-else class="empty">{{ loading ? '加载中...' : '暂无日志' }}</p>
+      <p v-else class="empty">{{ loading ? '加载中...' : '暂无编译记录' }}</p>
 
       <div class="pager">
-        <button class="btn-small" :disabled="page === 1 || loading" @click="changePage(page - 1)">
-          上一页
-        </button>
+        <button class="btn-small" :disabled="page === 1 || loading" @click="changePage(page - 1)">上一页</button>
         <span>第 {{ page }} 页 / 共 {{ totalPage }} 页（{{ total }} 条）</span>
         <button class="btn-small" :disabled="page >= totalPage || loading" @click="changePage(page + 1)">
           下一页
         </button>
       </div>
     </section>
-
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiRequest } from '../apiClient'
 
@@ -131,15 +98,11 @@ const list = ref([])
 const apps = ref([])
 const selectedAppId = ref('')
 const loading = ref(false)
-const error = ref('')
-const actioning = ref(null)
 const appsLoading = ref(false)
+const error = ref('')
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
-const employeeNo = ref('')
-const ackFilter = ref('all')
-const durationGt = ref('')
 const startDate = ref('')
 const endDate = ref('')
 
@@ -164,7 +127,7 @@ const getAdminHeaders = () => ({
 const handleAuthFailed = () => {
   localStorage.removeItem('admin_token')
   localStorage.removeItem('admin_role')
-  router.push({ path: '/admin/login', query: { redirect: '/admin/orders/logs' } })
+  router.push({ path: '/admin/login', query: { redirect: '/admin/compile-logs' } })
 }
 
 const fetchApps = async () => {
@@ -196,41 +159,34 @@ const fetchList = async () => {
   loading.value = true
   error.value = ''
   try {
-    const ackValue = ackFilter.value === 'all' ? null : (ackFilter.value === 'read' ? 1 : 0)
-    const durationValue = durationGt.value === '' ? null : Number(durationGt.value)
-    if (durationGt.value !== '' && (!Number.isFinite(durationValue) || durationValue < 0)) {
-      throw new Error('httpLatency 过滤值需为大于等于 0 的数字')
-    }
     const startMs = dateStringToStartMs(startDate.value)
     const endMs = dateStringToEndExclusiveMs(endDate.value)
-    if (startDate.value && startMs === null) {
-      throw new Error('开始日期格式无效')
-    }
-    if (endDate.value && endMs === null) {
-      throw new Error('结束日期格式无效')
-    }
+    if (startDate.value && startMs === null) throw new Error('开始日期格式无效')
+    if (endDate.value && endMs === null) throw new Error('结束日期格式无效')
     if (startMs !== null && endMs !== null && startMs >= endMs) {
       throw new Error('结束日期需大于等于开始日期')
     }
-    const { json } = await apiRequest('/api/admin/logs/unread', {
+    const { resp, json } = await apiRequest('/api/admin/compile-logs/list', {
       method: 'POST',
+      headers: getAdminHeaders(),
       body: JSON.stringify({
         appId: selectedAppId.value,
-        employeeNo: employeeNo.value || null,
-        durationGt: durationValue,
         createdStartMs: startMs,
         createdEndMs: endMs,
-        ack: ackValue,
-        unreadOnly: ackValue === null ? false : undefined,
         page: page.value,
         size: size.value
       })
     })
-    if (json.code !== 0) throw new Error(json.message || '获取日志失败')
+    if (resp.status === 401 || resp.status === 403) return handleAuthFailed()
+    if (json.code !== 0) throw new Error(json.message || '获取编译日志失败')
     total.value = json.data?.total || 0
-    list.value = json.data?.list || []
+    const raw = json.data?.list || []
+    list.value = raw.map((row) => ({
+      ...row,
+      success: row.success === 1 || row.success === true
+    }))
   } catch (e) {
-    error.value = e.message || '获取日志失败'
+    error.value = e.message || '获取编译日志失败'
   } finally {
     loading.value = false
   }
@@ -257,24 +213,6 @@ const onFilterChange = () => {
   fetchList()
 }
 
-const ack = async (row) => {
-  if (!selectedAppId.value) return
-  actioning.value = row.id
-  error.value = ''
-  try {
-    const { json } = await apiRequest(`/api/admin/logs/${row.id}/ack`, {
-      method: 'POST',
-      body: JSON.stringify({ appId: selectedAppId.value })
-    })
-    if (json.code !== 0) throw new Error(json.message || '操作失败')
-    row.ack = 1
-  } catch (e) {
-    error.value = e.message || '操作失败'
-  } finally {
-    actioning.value = null
-  }
-}
-
 const formatDate = (v) => {
   if (!v) return '-'
   try {
@@ -282,6 +220,23 @@ const formatDate = (v) => {
   } catch {
     return String(v)
   }
+}
+
+const formatDuration = (ms) => {
+  if (ms == null || !Number.isFinite(Number(ms))) return '-'
+  const n = Number(ms)
+  if (n < 1000) return `${n} ms`
+  const sec = n / 1000
+  if (sec < 60) return `${sec.toFixed(1)} s`
+  const m = Math.floor(sec / 60)
+  const s = Math.round(sec % 60)
+  return `${m} m ${s} s`
+}
+
+const projectTasksLine = (row) => {
+  const p = row.projectKey?.trim() || '-'
+  const t = row.tasks?.trim() || '-'
+  return `${p} · ${t}`
 }
 
 onMounted(() => {
@@ -306,7 +261,6 @@ onMounted(() => {
 
 .header-actions {
   display: flex;
-  align-items: center;
   gap: 0.5rem;
 }
 
@@ -316,18 +270,6 @@ onMounted(() => {
   font-size: 0.9rem;
   border: none;
   cursor: pointer;
-}
-
-.btn-primary {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-.link-btn {
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .btn-ghost {
@@ -361,7 +303,7 @@ onMounted(() => {
 }
 
 .apps-select {
-  min-width: 360px;
+  min-width: 280px;
   padding: 0.45rem 0.6rem;
   border-radius: var(--radius);
   border: 1px solid #d2d2d7;
@@ -425,8 +367,30 @@ onMounted(() => {
 }
 
 .content-cell {
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.cell-project-tasks {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  vertical-align: top;
+}
+
+.cell-tight {
+  max-width: 140px;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
+.small {
+  font-size: 0.8rem;
 }
 
 .badge {
@@ -443,24 +407,6 @@ onMounted(() => {
 .badge-warn {
   background: #fff3e0;
   color: #ef6c00;
-}
-
-.btn-action {
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-action[disabled] {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.btn-ack {
-  background: #e3f2fd;
-  color: #1976d2;
 }
 
 .muted {
@@ -508,4 +454,3 @@ code {
   border-radius: 4px;
 }
 </style>
-

@@ -9,6 +9,7 @@
         <router-link to="/admin/orders" class="menu-item" active-class="active">订单管理</router-link>
         <router-link to="/admin/apps" class="menu-item" active-class="active">应用管理</router-link>
         <router-link to="/admin/orders/logs" class="menu-item sub" active-class="active">日志管理</router-link>
+        <router-link to="/admin/compile-logs" class="menu-item sub" active-class="active">编译日志管理</router-link>
       </nav>
     </aside>
     <main class="content">

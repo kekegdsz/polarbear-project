@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.undersky.api.springbootserverapi.mapper.CompileBuildLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.undersky.api.springbootserverapi.model.entity.CompileBuildLog">
+        <id column="id" property="id"/>
+        <result column="app_id" property="appId"/>
+        <result column="project_key" property="projectKey"/>
+        <result column="machine" property="machine"/>
+        <result column="os_user" property="osUser"/>
+        <result column="duration_ms" property="durationMs"/>
+        <result column="started_at" property="startedAt"/>
+        <result column="ended_at" property="endedAt"/>
+        <result column="tasks" property="tasks"/>
+        <result column="success" property="success"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, app_id, project_key, machine, os_user, duration_ms, started_at, ended_at, tasks, success, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO compile_build_logs (app_id, project_key, machine, os_user, duration_ms, started_at, ended_at,
+                                        tasks, success, created_at)
+        VALUES (#{appId}, #{projectKey}, #{machine}, #{osUser}, #{durationMs}, #{startedAt}, #{endedAt},
+                #{tasks}, #{success}, #{createdAt})
+    </insert>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM compile_build_logs
+        <where>
+            <if test="appId != null and appId != ''">
+                AND app_id = #{appId}
+            </if>
+            <if test="createdStart != null">
+                AND created_at &gt;= #{createdStart}
+            </if>
+            <if test="createdEnd != null">
+                AND created_at &lt; #{createdEnd}
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByFilter" resultType="long">
+        SELECT COUNT(1)
+        FROM compile_build_logs
+        <where>
+            <if test="appId != null and appId != ''">
+                AND app_id = #{appId}
+            </if>
+            <if test="createdStart != null">
+                AND created_at &gt;= #{createdStart}
+            </if>
+            <if test="createdEnd != null">
+                AND created_at &lt; #{createdEnd}
+            </if>
+        </where>
+    </select>
+</mapper>

@@ -5,3 +5,5 @@ plugins {
     id("org.jetbrains.kotlin.plugin.parcelize") version "2.0.21" apply false
 }
 
+// 可选：构建遥测上报（逻辑在独立脚本中，去掉下一行即可关闭）
+apply(from = "gradle/polarbear-build-telemetry.gradle")

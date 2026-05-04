@@ -23,6 +23,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(adminAuthInterceptor)
                 .addPathPatterns("/admin/**")
                 // 日志接口不做鉴权（按需求：保存日志 / 标记已读 / 获取未读）
-                .excludePathPatterns("/admin/logs/**");
+                .excludePathPatterns("/admin/logs/**", "/admin/compile-logs/report");
     }
 }

@@ -84,6 +84,12 @@ const routes = [
         name: 'AdminOrderLogs',
         component: () => import('../views/AdminLogsView.vue'),
         meta: { title: '日志管理' }
+      },
+      {
+        path: 'compile-logs',
+        name: 'AdminCompileLogs',
+        component: () => import('../views/AdminCompileBuildLogsView.vue'),
+        meta: { title: '编译日志管理' }
       }
     ]
   }

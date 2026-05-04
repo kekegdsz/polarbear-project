@@ -62,6 +62,21 @@ CREATE TABLE IF NOT EXISTS logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Gradle / CI 编译上报（管理后台可查看）
+CREATE TABLE IF NOT EXISTS compile_build_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    app_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(128),
+    machine VARCHAR(512),
+    os_user VARCHAR(128),
+    duration_ms BIGINT NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP NOT NULL,
+    tasks VARCHAR(1024),
+    success TINYINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========== 即时通讯（Netty WebSocket）==========
 CREATE TABLE IF NOT EXISTS im_groups (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

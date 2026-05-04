@@ -40,7 +40,7 @@ fi
 echo "使用 Java: $JAVA_CMD"
 "$JAVA_CMD" -version 2>&1 | head -1
 
-# 停止旧进程（按 jar 名匹配）
+# 停止旧进程（按 war 文件名匹配；避免与宝塔「Java 项目管理器」重复启动时请只保留一处）
 pkill -f "${WAR_NAME}" 2>/dev/null || true
 sleep 2
 
@@ -57,12 +57,23 @@ nohup "$JAVA_CMD" -jar "$WAR_NAME" \
   --server.port="$SERVER_PORT" \
   > app.log 2>&1 &
 
-sleep 1
-if pgrep -f "$WAR_NAME" >/dev/null 2>&1; then
-  echo "已启动。日志: tail -f $(pwd)/app.log"
-  echo "本机探测: curl -s http://127.0.0.1:${SERVER_PORT}/api/hello"
-else
+if ! pgrep -f "$WAR_NAME" >/dev/null 2>&1; then
   echo "警告: 未检测到进程，请查看 app.log" >&2
-  tail -30 app.log >&2 || true
+  tail -40 app.log >&2 || true
   exit 1
 fi
+
+echo "等待 /api/hello 就绪（prod 冷启动可能需数十秒，避免 Nginx 502）..."
+READY_URL="http://127.0.0.1:${SERVER_PORT}/api/hello"
+for _ in $(seq 1 90); do
+  if curl -sf "$READY_URL" >/dev/null 2>&1; then
+    echo "已就绪。日志: tail -f $(pwd)/app.log"
+    echo "本机探测: curl -s ${READY_URL}"
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "错误: ${READY_URL} 在约 3 分钟内仍未响应（Nginx 可能出现 502）。请查看 app.log" >&2
+tail -50 app.log >&2 || true
+exit 1

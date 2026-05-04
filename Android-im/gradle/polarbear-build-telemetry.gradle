@@ -1,0 +1,216 @@
+/**
+ * PolarBear 构建遥测（可选）：构建结束后向服务端上报耗时、机器信息、起止时间等。
+ *
+ * 与 ycfm-android/script/remote_build.py 对齐：
+ * - 耗时：BUILD_TELEMETRY_START_MS（毫秒）
+ * - 发起人：BUILD_ORIGIN_USER / BUILD_ORIGIN_HOST / BUILD_ORIGIN_OS（本机执行 Python 的用户与机器）；未设置时退回打包机上的 USER/git
+ *
+ * 配置（gradle.properties 或环境变量）：
+ * - compileReportUrl / COMPILE_REPORT_URL
+ * - compileReportAppId / COMPILE_REPORT_APP_ID
+ */
+import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.URL
+import java.nio.charset.StandardCharsets
+import java.io.OutputStream
+
+def firstNonEmpty = { Object... vals ->
+    for (v in vals) {
+        if (v == null) continue
+        def s = v.toString().trim()
+        if (!s.isEmpty()) return s
+    }
+    return ''
+}
+
+def parseLongEnv = { String key ->
+    def raw = System.getenv(key)
+    if (raw == null) return null
+    raw = raw.trim()
+    if (raw.isEmpty()) return null
+    try {
+        return Long.parseLong(raw)
+    } catch (NumberFormatException ignored) {
+        return null
+    }
+}
+
+def execGitConfig = { String key, File dir ->
+    try {
+        def pb = new ProcessBuilder('git', 'config', '--get', key).directory(dir).redirectErrorStream(true)
+        def p = pb.start()
+        def txt = p.inputStream.getText('UTF-8').trim()
+        p.waitFor()
+        return p.exitValue() == 0 ? txt : ''
+    } catch (Throwable ignored) {
+        return ''
+    }
+}
+
+def resolveHostname = {
+    def h = firstNonEmpty(System.getenv('HOSTNAME'), System.getenv('COMPUTERNAME'))
+    if (!h.isEmpty()) return h
+    try {
+        return InetAddress.getLocalHost().getHostName()
+    } catch (Exception ignored) {
+        return 'unknown-host'
+    }
+}
+
+/** 与 remote_build.py 一致：发起人 git 邮箱前缀优先 */
+def resolveReportUser = { File repoRoot ->
+    def ou = System.getenv('BUILD_ORIGIN_USER')?.trim()
+    if (ou) return ou
+    def bu = System.getenv('BUILD_USER')?.trim()
+    if (bu) return bu
+    def email = execGitConfig('user.email', repoRoot)
+    if (email && email.contains('@')) {
+        return email.substring(0, email.indexOf('@')).trim()
+    }
+    def gname = execGitConfig('user.name', repoRoot)
+    if (gname) return gname
+    return firstNonEmpty(
+            System.getenv('USER'),
+            System.getenv('LOGNAME'),
+            System.getenv('USERNAME'),
+            System.getProperty('user.name')) ?: 'unknown'
+}
+
+def jsonEscape = { String s ->
+    if (s == null) {
+        return ''
+    }
+    StringBuilder sb = new StringBuilder(s.length() + 8)
+    for (int i = 0; i < s.length(); i++) {
+        char ch = s.charAt(i)
+        switch (ch) {
+            case '\\':
+                sb.append('\\\\')
+                break
+            case '"':
+                sb.append('\\"')
+                break
+            case '\n':
+                sb.append('\\n')
+                break
+            case '\r':
+                sb.append('\\r')
+                break
+            case '\t':
+                sb.append('\\t')
+                break
+            default:
+                if (ch < 0x20) {
+                    sb.append(String.format('\\u%04x', (int) ch))
+                } else {
+                    sb.append(ch)
+                }
+        }
+    }
+    return sb.toString()
+}
+
+def postCompileReport = { String urlStr, String jsonBody, logger ->
+    try {
+        URL url = new URL(urlStr)
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection()
+        conn.setRequestMethod('POST')
+        conn.setRequestProperty('Content-Type', 'application/json; charset=UTF-8')
+        conn.setDoOutput(true)
+        conn.setConnectTimeout(8000)
+        conn.setReadTimeout(8000)
+        OutputStream os = conn.getOutputStream()
+        try {
+            os.write(jsonBody.getBytes(StandardCharsets.UTF_8))
+        } finally {
+            os.close()
+        }
+        int code = conn.getResponseCode()
+        conn.disconnect()
+        if (code < 200 || code > 299) {
+            logger.lifecycle("[polarbear-telemetry] HTTP ${code}")
+        }
+    } catch (Exception e) {
+        logger.lifecycle("[polarbear-telemetry] failed: ${e.message}")
+    }
+}
+
+gradle.projectsEvaluated {
+    def rp = gradle.rootProject
+    if (rp.ext.find('polarbearTelemetryProjectsEvalMs') == null) {
+        rp.ext.polarbearTelemetryProjectsEvalMs = System.currentTimeMillis()
+    }
+}
+
+gradle.taskGraph.whenReady {
+    gradle.rootProject.ext.polarbearTelemetryGraphReadyMs = System.currentTimeMillis()
+}
+
+gradle.buildFinished { result ->
+    def root = gradle.rootProject
+    def logger = root.logger
+    def url = (root.findProperty('compileReportUrl') ?: System.getenv('COMPILE_REPORT_URL'))?.toString()?.trim()
+    def appId = (root.findProperty('compileReportAppId') ?: System.getenv('COMPILE_REPORT_APP_ID'))?.toString()?.trim()
+    if (!url || !appId) {
+        return
+    }
+    def graph = gradle.taskGraph
+    if (graph.allTasks.isEmpty()) {
+        return
+    }
+
+    long end = System.currentTimeMillis()
+    Long envStart = parseLongEnv('BUILD_TELEMETRY_START_MS')
+    if (envStart == null) {
+        envStart = parseLongEnv('POLARBEAR_TELEMETRY_BUILD_START_MS')
+    }
+    def projEval = root.ext.find('polarbearTelemetryProjectsEvalMs')
+    def graphReady = root.ext.find('polarbearTelemetryGraphReadyMs')
+
+    long start
+    if (envStart != null) {
+        start = envStart.longValue()
+    } else if (projEval instanceof Long) {
+        start = (Long) projEval
+    } else if (graphReady instanceof Long) {
+        start = (Long) graphReady
+    } else {
+        return
+    }
+
+    long duration = Math.max(0L, end - start)
+
+    def tasksStr = graph.allTasks.collect { it.path }.sort().join(',')
+    if (tasksStr.length() > 1024) {
+        tasksStr = tasksStr.substring(0, 1024)
+    }
+
+    def remoteHost = resolveHostname()
+    def remoteOs = "${System.getProperty('os.name')} ${System.getProperty('os.arch')}"
+    def originHost = System.getenv('BUILD_ORIGIN_HOST')?.trim()
+    def originOs = System.getenv('BUILD_ORIGIN_OS')?.trim()
+    def loginUser = resolveReportUser(root.rootDir)
+
+    String machine
+    String osUser
+    if (originHost) {
+        machine = originOs ? "发起 ${originHost} (${originOs}) · 打包 ${remoteHost}" : "发起 ${originHost} · 打包 ${remoteHost}"
+        if (machine.length() > 512) {
+            machine = machine.substring(0, 512)
+        }
+        osUser = "${loginUser}@${originHost}"
+    } else {
+        machine = "${remoteHost} (${remoteOs})"
+        def viaSsh = !(System.getenv('SSH_CONNECTION') ?: System.getenv('SSH_CLIENT') ?: '').toString().trim().isEmpty()
+        osUser = viaSsh ? "${loginUser}@${remoteHost} (ssh)" : "${loginUser}@${remoteHost}"
+    }
+    if (osUser.length() > 128) {
+        osUser = osUser.substring(0, 128)
+    }
+
+    def projectKey = root.name
+    boolean success = (result.failure == null)
+    def body = "{\"appId\":\"${jsonEscape(appId)}\",\"projectKey\":\"${jsonEscape(projectKey)}\",\"machine\":\"${jsonEscape(machine)}\",\"osUser\":\"${jsonEscape(osUser)}\",\"durationMs\":${duration},\"startedAtMs\":${start},\"endedAtMs\":${end},\"tasks\":\"${jsonEscape(tasksStr)}\",\"success\":${success}}"
+    postCompileReport(url, body, logger)
+}
